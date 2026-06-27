@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { LogoMark, Wordmark } from "../components/Logo";
 import { CsfloatMark } from "../components/CsfloatMark";
-import { APP_TAGLINE } from "../lib/brand";
+import { APP_TAGLINE, DISCORD_URL } from "../lib/brand";
 
 type SectionId = string;
 
@@ -286,6 +286,14 @@ export function HelpPage() {
           </div>
         </Accordion>
       </div>
+
+      <p className="mt-6 text-center text-[13px] text-fg-dim">
+        Still stuck, or want to suggest something?{" "}
+        <a href={DISCORD_URL} target="_blank" rel="noreferrer" className="text-accent hover:underline">
+          Join the Discord
+        </a>
+        .
+      </p>
     </div>
   );
 }

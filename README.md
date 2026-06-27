@@ -14,11 +14,12 @@ The inventory manager for serious CS2 collectors. Search everything you own, tra
 [![Build](https://img.shields.io/github/actions/workflow/status/0xRetroDev/caskt/release.yml?style=flat-square&color=e8a82e&label=build)](https://github.com/0xRetroDev/caskt/actions/workflows/release.yml)
 [![Downloads](https://img.shields.io/github/downloads/0xRetroDev/caskt/total?style=flat-square&color=e8a82e)](https://github.com/0xRetroDev/caskt/releases)
 [![License](https://img.shields.io/github/license/0xRetroDev/caskt?style=flat-square&color=e8a82e)](LICENSE)
+[![Discord](https://img.shields.io/badge/Discord-join-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/kKv6WM8NDt)
 ![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-e8a82e?style=flat-square)
 
 <br />
 
-[**Download**](https://github.com/0xRetroDev/caskt/releases/latest) · [Report a bug](https://github.com/0xRetroDev/caskt/issues) · [Request a feature](https://github.com/0xRetroDev/caskt/issues)
+[**Download**](https://github.com/0xRetroDev/caskt/releases/latest) · [Discord](https://discord.gg/kKv6WM8NDt) · [Report a bug](https://github.com/0xRetroDev/caskt/issues) · [Request a feature](https://github.com/0xRetroDev/caskt/issues)
 
 <br />
 
@@ -108,6 +109,10 @@ Caskt is local-first. It talks only to Steam, and to CSFloat if you choose to co
 ## Tech stack
 
 `Electron` · `Node` · `TypeScript` · `React` · `Vite` · `Tailwind` · `TanStack Query` · `SQLite` · `better-sqlite3`
+
+## Community
+
+Questions, feedback, or want to follow along? [Join the Discord](https://discord.gg/kKv6WM8NDt).
 
 ## Contributing
 
