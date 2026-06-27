@@ -33,7 +33,7 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
 
           <p className="mt-5 text-[13px] leading-relaxed text-fg-dim">
             A local, open-source manager for your CS2 inventory and storage units. {APP_NAME} runs entirely
-            on your machine and talks only to Steam. No account, no telemetry.
+            on your machine.
           </p>
 
           <div className="mt-5 flex w-full flex-col gap-2">
