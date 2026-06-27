@@ -1,0 +1,27 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+out/
+*.tsbuildinfo
+
+# packaged installers
+desktop/out/
+
+# local runtime data (never commit account data)
+data/
+*.enc
+token.enc
+
+# generated data files (downloaded at runtime)
+server/schema.json
+server/images.json
+server/prices.json
+server/prices.meta.json
+server/rates.json
+
+# logs and os cruft
+*.log
+.DS_Store
+Thumbs.db

@@ -1,0 +1,113 @@
+# electron-builder configuration.
+#
+# The desktop package bundles three things: this Electron shell, the built
+# server (server/dist) plus its production node_modules, and the built UI
+# (ui/dist). Native modules (better-sqlite3) are rebuilt for Electron's ABI at
+# package time and left unpacked so they can load from disk.
+
+appId: dev.0xretro.caskt
+productName: Caskt
+copyright: Copyright © 0xRetroDev
+
+directories:
+  output: out
+  buildResources: build
+
+# Files from THIS package that go inside the app. electron-updater is a runtime
+# dependency, so its module tree must be packed (electron-builder prunes
+# devDependencies automatically).
+files:
+  - main.cjs
+  - preload.cjs
+  - package.json
+  - node_modules/**/*
+
+# The server and UI live in sibling workspaces; ship their build output and the
+# server's runtime dependencies as resources next to the app.
+extraResources:
+  - from: ../server/package.json
+    to: server/package.json
+  - from: ../server/dist
+    to: server/dist
+  - from: ../server/node_modules
+    to: server/node_modules
+  - from: ../ui/dist
+    to: ui/dist
+  - from: build/icon.png
+    to: desktop/build/icon.png
+
+# Native .node binaries must stay unpacked to be loadable.
+asarUnpack:
+  - "**/*.node"
+
+# We rebuild the server's native module for Electron ourselves (see
+# desktop/scripts/rebuild-native.cjs), so electron-builder must not try to
+# rebuild the desktop package's own (non-native) dependencies.
+npmRebuild: false
+
+win:
+  target:
+    - nsis
+  icon: build/icon.ico
+
+nsis:
+  oneClick: false
+  perMachine: false
+  # Install per-user without requiring administrator rights. This avoids a UAC
+  # prompt on install and, crucially, lets auto-updates apply without elevation.
+  allowElevation: false
+  allowToChangeInstallationDirectory: true
+  # Show the MIT license as a page in the installer wizard.
+  license: build/license.txt
+  # Branding: custom icons, a welcome/finish sidebar, and an inner-page header.
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
+  installerSidebar: build/installerSidebar.bmp
+  uninstallerSidebar: build/uninstallerSidebar.bmp
+  installerHeader: build/installerHeader.bmp
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Caskt
+  uninstallDisplayName: Caskt ${version}
+  runAfterFinish: true
+  artifactName: ${productName}-Setup-${version}.${ext}
+
+mac:
+  target:
+    - dmg
+  category: public.app-category.utilities
+  icon: build/icon.png
+  # Notarization/signing are configured via environment in CI; unsigned local
+  # builds still run after a Gatekeeper prompt.
+
+dmg:
+  background: build/dmg-background.png
+  iconSize: 100
+  window:
+    width: 660
+    height: 400
+  contents:
+    - x: 180
+      y: 200
+      type: file
+    - x: 480
+      y: 200
+      type: link
+      path: /Applications
+
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Utility
+  icon: build/icon.png
+
+# Releases are published to GitHub. electron-builder writes the update metadata
+# (latest.yml / latest-linux.yml) next to the installers, and bundles an
+# app-update.yml so electron-updater knows where to check. Installs are still
+# cut by the tagged CI workflow, not from anyone's machine.
+publish:
+  provider: github
+  owner: 0xRetroDev
+  repo: caskt

@@ -1,0 +1,23 @@
+{
+  "name": "caskt",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Caskt — a local, open-source CS2 inventory and storage-unit manager. Manage. Track. Collect.",
+  "license": "MIT",
+  "author": "0xRetroDev (https://0xretro.dev)",
+  "homepage": "https://0xretro.dev",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "setup": "npm --prefix server install && npm --prefix ui install && npm --prefix desktop install",
+    "build:server": "npm --prefix server run build",
+    "build:ui": "npm --prefix ui run build",
+    "build:renderer": "npm run build:server && npm run build:ui",
+    "build": "npm run build:renderer && npm --prefix desktop run dist",
+    "build:dir": "npm run build:renderer && npm --prefix desktop run dist:dir",
+    "dev": "npm run build:renderer && npm --prefix desktop run dev",
+    "test": "npm --prefix server test",
+    "typecheck": "npm --prefix server run typecheck"
+  }
+}

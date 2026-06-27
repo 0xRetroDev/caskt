@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.db
+*.db-*
+schema.json
+.env
+images.json
+prices.json
