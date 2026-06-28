@@ -39,8 +39,9 @@ jobs:
         run: node scripts/set-version.cjs "${{ github.ref_name }}"
 
       - name: Install dependencies
-            rm -rf server/node_modules ui/node_modules desktop/node_modules
-            npm run setup
+          run: |
+          rm -rf server/node_modules ui/node_modules desktop/node_modules
+          npm run setup
 
       # Expose signing credentials to the build only when the secrets actually
       # exist. A missing secret expands to an empty string, and an empty CSC_LINK
