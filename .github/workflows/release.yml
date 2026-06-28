@@ -40,7 +40,9 @@ jobs:
 
       - name: Install dependencies
         shell: bash
-        run: npm run setup
+        run: |
+          rm -rf server/node_modules ui/node_modules desktop/node_modules
+          npm run setup
 
       # Expose signing credentials to the build only when the secrets actually
       # exist. A missing secret expands to an empty string, and an empty CSC_LINK
@@ -61,27 +63,14 @@ jobs:
             if [ -n "${!v}" ]; then echo "$v=${!v}" >> "$GITHUB_ENV"; fi
           done
 
-      # electron-builder's asar packager has an open upstream bug
-      # (electron-userland/electron-builder#8345) where it throws
-      # "<file> must be under <desktop>\" for any extraResources file that
-      # lives outside the desktop/ package directory. Our server and ui
-      # builds are sibling packages, so extraResources used to reach up
-      # with ../server and ../ui — exactly the pattern that triggers it.
-      # Staging copies inside desktop/ first means electron-builder never
-      # has to resolve a path outside its own package root.
-      - name: Stage server and ui builds into desktop
-        shell: bash
-        run: |
-          rm -rf desktop/staging
-          mkdir -p desktop/staging/server desktop/staging/ui
-          cp -r server/dist desktop/staging/server/dist
-          cp -r server/node_modules desktop/staging/server/node_modules
-          cp server/package.json desktop/staging/server/package.json
-          cp -r ui/dist desktop/staging/ui/dist
-
       - name: Build app
         run: npm run build
-        timeout-minutes: 20
+        timeout-minutes: 8
+
+      - name: List all processes on timeout
+        if: always() && runner.os == 'Windows'
+        shell: pwsh
+        run: Get-Process | Sort-Object CPU -Descending | Select-Object -First 20 | Format-Table -AutoSize
 
       - name: Upload installers
         uses: actions/upload-artifact@v4
