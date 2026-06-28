@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        os: [windows-2022, macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -32,17 +32,6 @@ jobs:
 
       - name: Install dependencies
         run: npm run setup
-
-      - name: Check node_modules sizes
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          Write-Host "server/node_modules:"
-          (Get-ChildItem -Recurse server/node_modules -File).Count
-          Write-Host "desktop/node_modules:"
-          (Get-ChildItem -Recurse desktop/node_modules -File).Count
-          Write-Host "ui/dist:"
-          (Get-ChildItem -Recurse ui/dist -File).Count
 
       - name: Configure code signing
         shell: bash
