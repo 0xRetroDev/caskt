@@ -97,14 +97,14 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
               >
                 <Icon size={15} className="shrink-0" />
                 {label}
-                {id === "general" && updates.available && (
+                {id === "general" && updates.hasUpdate && (
                   <span className="ml-auto h-1.5 w-1.5 rounded-full bg-accent" />
                 )}
               </button>
             ))}
           </nav>
           <div className="mt-auto px-2 pb-1 pt-3">
-            <span className="num text-[11px] text-fg-faint">v{APP_VERSION}</span>
+            <span className="num text-[11px] text-fg-faint">v{updates.state?.currentVersion ?? APP_VERSION}</span>
           </div>
         </div>
 
@@ -326,6 +326,7 @@ function UpdatesSection({ updates }: { updates: ReturnType<typeof useUpdates> })
 
   const version = state?.currentVersion ?? APP_VERSION;
   const status = state?.status ?? "idle";
+  const hasUpdate = status === "available" || status === "downloading" || status === "downloaded";
   const supported = state?.supported ?? false;
   const releasesUrl = `${REPO_URL}/releases`;
 
@@ -343,7 +344,7 @@ function UpdatesSection({ updates }: { updates: ReturnType<typeof useUpdates> })
       <div className="flex items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-1.5 text-sm font-medium text-fg">
-            <ShieldCheck size={14} className="text-accent" /> Update available
+            <ShieldCheck size={14} className="text-accent" /> {hasUpdate ? "Update available" : "Software updates"}
           </div>
           <p className="mt-1 text-[12px] text-fg-dim">
             {supported

@@ -50,5 +50,13 @@ export function useUpdates() {
     return api.onState(setState);
   }, [api]);
 
-  return { available: !!api, api: api ?? null, state };
+  return {
+    available: !!api,
+    hasUpdate:
+      state?.status === "available" ||
+      state?.status === "downloading" ||
+      state?.status === "downloaded",
+    api: api ?? null,
+    state,
+  };
 }
