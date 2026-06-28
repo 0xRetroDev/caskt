@@ -13,6 +13,8 @@ directories:
   output: out
   buildResources: build
 
+compression: store
+
 # Files from THIS package that go inside the app. electron-updater is a runtime
 # dependency, so its module tree must be packed (electron-builder prunes
 # devDependencies automatically).
