@@ -65,14 +65,17 @@ jobs:
       # hang. Turning it off for the build run fixes it. Best-effort: if it can't
       # be changed, the build still proceeds (just slowly).
       - name: Speed up Windows packaging
-  if: runner.os == 'Windows'
-  shell: pwsh
-  run: |
-    Set-MpPreference -DisableRealtimeMonitoring $true
-    Add-MpPreference -ExclusionPath "${{ github.workspace }}"
-    Add-MpPreference -ExclusionPath "$env:LOCALAPPDATA\electron-builder"
-    Add-MpPreference -ExclusionPath "$env:USERPROFILE\AppData\Local\Temp"
-    Get-MpPreference | Select-Object DisableRealtimeMonitoring, ExclusionPath
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Set-MpPreference -DisableRealtimeMonitoring $true
+          Add-MpPreference -ExclusionPath "${{ github.workspace }}"
+          Add-MpPreference -ExclusionPath "$env:LOCALAPPDATA\electron-builder"
+          Add-MpPreference -ExclusionPath "$env:USERPROFILE\AppData\Local\Temp"
+          Get-MpPreference | Select-Object DisableRealtimeMonitoring, ExclusionPath
+
+      - name: Build app
+        run: npm run build
 
       - name: Build app
         run: npm run build
