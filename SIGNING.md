@@ -5,17 +5,17 @@ and unsigned macOS apps trip Gatekeeper. Signing removes that friction. This is
 optional, the app builds and runs unsigned, and signing is **off until you add
 credentials**. Nothing here changes the unsigned build.
 
-## The pipeline is already wired
+## How signing plugs in
 
-`.github/workflows/release.yml` passes these to electron-builder, which signs
-automatically when they are present and skips signing when they are absent:
+electron-builder reads signing credentials from the environment at build time,
+signing automatically when they are present and skipping when they are absent.
+For a local Windows build, set these in your shell before `npm run build`:
 
 - `CSC_LINK` — the Windows certificate (a base64-encoded `.pfx`, or a path/URL).
 - `CSC_KEY_PASSWORD` — its password.
-- `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` — macOS notarization.
 
-So enabling Windows signing is, mechanically, just adding two GitHub secrets. The
-catch is getting a usable certificate.
+So enabling signing is, mechanically, just exporting those two variables before a
+build. The catch is getting a usable certificate.
 
 ## Windows certificate options and cost (2026)
 
@@ -48,10 +48,10 @@ once the binary builds enough download reputation.
      codeSigningAccountName: "<your-account>"
      certificateProfileName: "<your-profile>"
    ```
-4. Add the Azure auth secrets to the CI `env:` (alongside the existing ones):
+4. Export the Azure auth variables in your shell before building:
    `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`.
 
-That's the whole change; the rest of the pipeline is unchanged.
+That's the whole change; the rest of the build is unchanged.
 
 ## Test the signed flow now, for free
 
@@ -80,9 +80,7 @@ applying it, so a changed publisher can block updates. When you have a real cert
 set `win.publisherName` in `electron-builder.yml` to the certificate's subject so
 it stays consistent.
 
-## macOS
+## macOS and Linux
 
-macOS signing + notarization needs an Apple Developer account ($99/year) and is
-deferred for now. The Apple secrets above are already wired; when you have the
-account, add a `zip` target next to the `dmg` so `electron-updater` can apply mac
-updates too. See BUILD.md.
+Caskt ships Windows-only for now, so there's nothing to sign on other platforms.
+If macOS or Linux builds return later, this is where their signing notes will go.

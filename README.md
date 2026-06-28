@@ -11,7 +11,7 @@ The inventory manager for serious CS2 collectors. Search everything you own, tra
 <br />
 
 [![Discord](https://img.shields.io/badge/Discord-join-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/kKv6WM8NDt)
-![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-e8a82e?style=flat-square)
+![Platforms](https://img.shields.io/badge/platform-Windows-e8a82e?style=flat-square)
 
 <br />
 
@@ -60,15 +60,13 @@ Caskt puts your entire collection, every storage unit included, into one fast de
 
 ## Download
 
-Grab the latest installer for your platform from the [Releases page](https://github.com/0xRetroDev/caskt/releases/latest):
+Grab the latest installer from the [Releases page](https://github.com/0xRetroDev/caskt/releases/latest) and run it:
 
 | Platform | File |
 | --- | --- |
 | Windows | `Caskt-Setup-*.exe` |
-| macOS | `Caskt-*.dmg` |
-| Linux | `Caskt-*.AppImage` or `*.deb` |
 
-Caskt updates itself, so once it is installed new releases arrive automatically.
+Caskt is Windows-only for now. It updates itself, so once installed, new releases arrive automatically.
 
 ## Build from source
 

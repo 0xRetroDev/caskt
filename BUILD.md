@@ -1,15 +1,12 @@
 # Building Caskt from source
 
-This document is the build path a developer follows to verify that the published installers match the source. If you can produce a working build with these steps, you can trust the releases, because the [release workflow](.github/workflows/release.yml) runs these same steps on clean CI runners.
+This document is the build path a developer follows to verify that the published installers match the source. Caskt has no hidden build steps: if you can produce a working build with the steps below, you can trust the releases, because they are produced by running these exact same commands. Releases are cut by hand on Windows rather than by CI, so building it yourself is how you confirm what is in them.
 
 ## Prerequisites
 
 - **Node.js 20 or newer** and npm.
-- A C/C++ toolchain, because the server uses a native SQLite module (`better-sqlite3`) that is recompiled for Electron during every build:
-  - **Windows:** Visual Studio Build Tools with the "Desktop development with C++" workload.
-  - **macOS:** Xcode Command Line Tools (`xcode-select --install`).
-  - **Linux:** `build-essential` and `python3`.
-- **Windows only:** enable Developer Mode (Settings → System → For developers → Developer Mode), or run your terminal as Administrator. electron-builder unpacks its signing toolkit using symbolic links, which Windows only permits with that privilege. Without it the package step fails with `A required privilege is not held by the client`. If you hit that error before enabling it, clear the half-written cache once: `Remove-Item -Recurse -Force "$env:LOCALAPPDATA\electron-builder\Cache\winCodeSign"`. (GitHub's Windows CI runners already hold this privilege, so the published release builds are unaffected.)
+- **Visual Studio Build Tools** with the "Desktop development with C++" workload, because the server uses a native SQLite module (`better-sqlite3`) that is recompiled for Electron during every build.
+- Enable **Developer Mode** (Settings → System → For developers → Developer Mode), or run your terminal as Administrator. electron-builder unpacks its toolkit using symbolic links, which Windows only permits with that privilege. Without it the package step fails with `A required privilege is not held by the client`. If you hit that error before enabling it, clear the half-written cache once: `Remove-Item -Recurse -Force "$env:LOCALAPPDATA\electron-builder\Cache\winCodeSign"`.
 
 No global tooling is required beyond Node and the compiler; everything else is installed locally per package.
 
@@ -32,7 +29,7 @@ npm run setup    # installs server, ui and desktop dependencies
 npm run build    # builds the server, the UI, then packages the desktop app
 ```
 
-The finished installer for your platform is written to `desktop/out`.
+The finished Windows installer is written to `desktop/out`, along with the `latest.yml` and `.blockmap` files the auto-updater needs.
 
 To produce an unpacked build (useful for debugging, no installer) use:
 
@@ -75,11 +72,10 @@ npm run typecheck
 
 ## Code signing
 
-Local builds are unsigned and trigger a one-time OS prompt. Signing and
-notarization are driven entirely by environment variables consumed by
-`electron-builder` in CI, so unsigned builds need no secrets and anyone can build
-from source. The installer also shows the MIT license as a wizard page
-(`build/license.txt`).
+Releases are unsigned for now, so Windows SmartScreen shows an "unknown
+publisher" warning on first run (click **More info -> Run anyway**). Signing is
+optional and off: the app builds and runs fine without it, and the installer
+shows the MIT license as a wizard page (`build/license.txt`).
 
 See **SIGNING.md** for the full picture: the Windows certificate options and
 their real-world cost, how to enable Azure Trusted Signing, and how to test the
@@ -88,7 +84,7 @@ signed-install flow for free with a self-signed certificate
 
 ## Reproducibility
 
-The release workflow checks out the tag, runs `npm run setup` and `npm run build` on stock GitHub-hosted runners for Windows, macOS and Linux, and uploads the resulting installers. There are no hidden build steps. A from-source build on the same OS and Node major version produces a functionally identical app.
+There are no hidden build steps: `npm run setup` and `npm run build` are the entire build. A from-source build on Windows with the same Node major version produces a functionally identical app to the published installer. That is how you verify a release without trusting anyone: build it yourself and compare.
 
 ## Releases and auto-update
 
@@ -96,25 +92,23 @@ This section is for maintainers cutting a release; building from source (above)
 needs none of it. The desktop app updates itself from GitHub Releases via
 `electron-updater`.
 
-- **Cutting a release.** Push a tag like `v0.1.1` (matching `desktop/package.json`'s `version`). The `release` workflow builds on all three runners and attaches the installers **plus** the update metadata electron-updater needs: `latest.yml` (Windows), `latest-linux.yml` (Linux), and the `.blockmap` files. All of these must live on the same release for updates to work, which the workflow handles.
-- **How clients update.** Windows and Linux AppImage builds download new versions in the background (when the user leaves auto-download on) and install when the user clicks **Restart to update** in Settings. Installs are never silent or mid-session, so a running schedule is never interrupted.
-- **macOS and `.deb`.** These are unsigned, so they only *check* and notify; the Settings panel links the user to the GitHub release to install manually. To enable full macOS auto-update later, add Apple Developer ID signing + notarization (the env vars already referenced in CI) and ship a `zip` target alongside the `dmg`.
-- **Feed config.** `publish:` in `desktop/electron-builder.yml` points at the GitHub repo; this is what generates the bundled `app-update.yml`. If the repo owner/name ever changes, update it there.
+- **Cutting a release.** Bump the `version` in both `desktop/package.json` and the root `package.json`, commit, then run `npm run setup && npm run build` on Windows. Create a GitHub release on the matching tag (e.g. `v0.1.1`) and upload the three files from `desktop/out` that belong together: `Caskt-Setup-*.exe`, `latest.yml`, and `Caskt-Setup-*.exe.blockmap`. All three must live on the same release for auto-update to work.
+- **How clients update.** The installed app checks GitHub for a newer `latest.yml`, downloads in the background (when the user leaves auto-download on), and installs when the user clicks **Restart to update** in Settings. Installs are never silent or mid-session, so a running schedule is never interrupted.
+- **Feed config.** `publish:` in `desktop/electron-builder.yml` points at the GitHub repo; this is what generates the bundled `app-update.yml` and the `latest.yml`. If the repo owner/name ever changes, update it there.
 
 ## Installer branding
 
-The Windows installer and macOS DMG are branded rather than generic. The art is
-generated from `desktop/build/icon.png`:
+The Windows installer is branded rather than generic. The art is generated from
+`desktop/build/icon.png`:
 
 - `icon.ico` — Windows app + installer/uninstaller icon.
 - `installerSidebar.bmp` (164×314) — the NSIS welcome/finish panel (icon + wordmark + tagline).
 - `installerHeader.bmp` (150×57) — the inner-page header, a centered "caskt" wordmark with no icon.
-- `dmg-background.png` (+ `@2x`) — the macOS DMG window background with a drag-to-Applications layout.
 
 The wordmark is drawn in the app's brand face, Saira Condensed, vendored at
 `desktop/build/fonts/` so the script reproduces the shipped art exactly; if that
 font is missing it falls back to a condensed system font. These are wired up in
-`desktop/electron-builder.yml` (the `nsis:` and `dmg:` blocks). To regenerate
+`desktop/electron-builder.yml` (the `nsis:` block). To regenerate
 after changing the icon or brand, run from `desktop/`:
 
 ```bash

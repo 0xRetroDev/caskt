@@ -81,40 +81,11 @@ nsis:
   runAfterFinish: true
   artifactName: ${productName}-Setup-${version}.${ext}
 
-mac:
-  target:
-    - dmg
-  category: public.app-category.utilities
-  icon: build/icon.png
-  # Notarization/signing are configured via environment in CI; unsigned local
-  # builds still run after a Gatekeeper prompt.
-
-dmg:
-  background: build/dmg-background.png
-  iconSize: 100
-  window:
-    width: 660
-    height: 400
-  contents:
-    - x: 180
-      y: 200
-      type: file
-    - x: 480
-      y: 200
-      type: link
-      path: /Applications
-
-linux:
-  target:
-    - AppImage
-    - deb
-  category: Utility
-  icon: build/icon.png
-
-# Releases are published to GitHub. electron-builder writes the update metadata
-# (latest.yml / latest-linux.yml) next to the installers, and bundles an
-# app-update.yml so electron-updater knows where to check. Installs are still
-# cut by the tagged CI workflow, not from anyone's machine.
+# electron-updater checks GitHub Releases for updates. Keeping this publish block
+# makes electron-builder write the update metadata (latest.yml) next to the
+# installer and bake an app-update.yml into the app pointing at this repo, so
+# self-update works. Releases are built locally on Windows and uploaded by hand;
+# the build itself never publishes (the dist script passes --publish never).
 publish:
   provider: github
   owner: 0xRetroDev
