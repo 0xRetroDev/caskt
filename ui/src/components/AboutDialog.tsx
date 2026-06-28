@@ -1,8 +1,11 @@
 import { Github, Globe, X } from "lucide-react";
 import { LogoMark, Wordmark } from "./Logo";
 import { APP_NAME, APP_TAGLINE, APP_VERSION, BUILDER, DISCORD_URL, REPO_URL } from "../lib/brand";
+import { useUpdates } from "../lib/updates";
 
 export function AboutDialog({ onClose }: { onClose: () => void }) {
+  const { state } = useUpdates();
+  const version = state?.currentVersion ?? APP_VERSION;
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
       <div
@@ -28,7 +31,7 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
           </h2>
           <p className="mt-0.5 text-[11px] font-700 uppercase tracking-[0.24em] text-accent">{APP_TAGLINE}</p>
           <p className="num mt-2 rounded-full border border-line bg-ink-700/60 px-2.5 py-0.5 text-[11px] text-fg-dim">
-            v{APP_VERSION}
+            v{version}
           </p>
 
           <p className="mt-5 text-[13px] leading-relaxed text-fg-dim">

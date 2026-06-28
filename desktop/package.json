@@ -1,6 +1,6 @@
 {
   "name": "caskt-desktop",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "Caskt desktop shell. Runs the local server in-process and hosts the UI, with a tray so scheduled moves keep running in the background.",
   "license": "MIT",
