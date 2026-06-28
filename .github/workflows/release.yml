@@ -75,8 +75,14 @@ jobs:
           New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
           Invoke-WebRequest -Uri "https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-3.0.4.1/nsis-3.0.4.1.7z" -OutFile "$cacheDir\nsis.7z"
           7z x "$cacheDir\nsis.7z" -o"$cacheDir" -y
-          Write-Host "--- Extracted NSIS cache contents ---"
-          Get-ChildItem -Recurse "$cacheDir\Bin"
+          Write-Host "--- Root contents ---"
+          Get-ChildItem $cacheDir
+          Write-Host "--- Bin contents ---"
+          Get-ChildItem "$cacheDir\Bin"
+          if (-not (Test-Path "$cacheDir\Bin\elevate.exe")) {
+            Write-Host "elevate.exe not in Bin, copying from archive root"
+            Copy-Item "$cacheDir\elevate.exe" "$cacheDir\Bin\elevate.exe" -ErrorAction SilentlyContinue
+          }
           if (-not (Test-Path "$cacheDir\Bin\makensis.exe")) {
             Write-Error "makensis.exe missing after manual extraction"
             exit 1
