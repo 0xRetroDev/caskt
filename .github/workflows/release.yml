@@ -60,41 +60,9 @@ jobs:
             if [ -n "${!v}" ]; then echo "$v=${!v}" >> "$GITHUB_ENV"; fi
           done
 
-      # electron-builder downloads NSIS into its cache on first use, and on
-      # GitHub's hosted Windows runners that download/extract step has been
-      # observed to silently hang or leave makensis.exe missing from the cache
-      # (electron-builder/electron-builder#8613). Fetching and extracting it
-      # ourselves, into the exact path electron-builder expects, sidesteps
-      # whatever is going wrong inside electron-builder's own resolution and
-      # lets us see the extraction succeed or fail instead of hanging blind.
-      - name: Manually fetch and extract NSIS
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $cacheDir = "D:\electron-builder\Cache\nsis\nsis-3.0.4.1"
-          New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
-          Invoke-WebRequest -Uri "https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-3.0.4.1/nsis-3.0.4.1.7z" -OutFile "$cacheDir\nsis.7z"
-          7z x "$cacheDir\nsis.7z" -o"$cacheDir" -y
-          Write-Host "--- Root contents ---"
-          Get-ChildItem $cacheDir
-          Write-Host "--- Bin contents ---"
-          Get-ChildItem "$cacheDir\Bin"
-          if (-not (Test-Path "$cacheDir\Bin\elevate.exe")) {
-            Write-Host "elevate.exe not in Bin, copying from archive root"
-            Copy-Item "$cacheDir\elevate.exe" "$cacheDir\Bin\elevate.exe" -ErrorAction SilentlyContinue
-          }
-          if (-not (Test-Path "$cacheDir\Bin\makensis.exe")) {
-            Write-Error "makensis.exe missing after manual extraction"
-            exit 1
-          }
-          if (-not (Test-Path "$cacheDir\Bin\elevate.exe")) {
-            Write-Error "elevate.exe missing after manual extraction"
-            exit 1
-          }
-
       - name: Build app
         run: npm run build
-        timeout-minutes: 15
+        timeout-minutes: 8
 
       - name: List all processes on timeout
         if: always() && runner.os == 'Windows'
