@@ -13,7 +13,7 @@ directories:
   output: out
   buildResources: build
 
-  asar: false
+asar: false
 
 # Files from THIS package that go inside the app. electron-updater is a runtime
 # dependency, so its module tree must be packed (electron-builder prunes
