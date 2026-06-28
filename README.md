@@ -10,9 +10,6 @@ The inventory manager for serious CS2 collectors. Search everything you own, tra
 
 <br />
 
-[![Release](https://img.shields.io/github/v/release/0xRetroDev/caskt?style=flat-square&color=e8a82e&label=release)](https://github.com/0xRetroDev/caskt/releases/latest)
-[![Build](https://img.shields.io/github/actions/workflow/status/0xRetroDev/caskt/release.yml?style=flat-square&color=e8a82e&label=build)](https://github.com/0xRetroDev/caskt/actions/workflows/release.yml)
-[![Downloads](https://img.shields.io/github/downloads/0xRetroDev/caskt/total?style=flat-square&color=e8a82e)](https://github.com/0xRetroDev/caskt/releases)
 [![License](https://img.shields.io/github/license/0xRetroDev/caskt?style=flat-square&color=e8a82e)](LICENSE)
 [![Discord](https://img.shields.io/badge/Discord-join-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/kKv6WM8NDt)
 ![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-e8a82e?style=flat-square)
