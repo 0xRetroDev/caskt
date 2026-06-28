@@ -4,7 +4,7 @@ export const APP_TAGLINE = "Manage. Track. Collect.";
 export const APP_SUBTITLE = "Your CS inventory.";
 export const APP_VERSION = "0.1.0";
 export const REPO_URL = "https://github.com/0xRetroDev/caskt";
-export const DISCORD_URL = "https://discord.gg/kKv6WM8NDt";
+export const DISCORD_URL = "https://discord.gg/EQP6rAwTnc";
 
 export const BUILDER = {
   name: "0xRetroDev",
