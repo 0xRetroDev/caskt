@@ -10,7 +10,6 @@ The inventory manager for serious CS2 collectors. Search everything you own, tra
 
 <br />
 
-[![License](https://img.shields.io/github/license/0xRetroDev/caskt?style=flat-square&color=e8a82e)](LICENSE)
 [![Discord](https://img.shields.io/badge/Discord-join-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/kKv6WM8NDt)
 ![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-e8a82e?style=flat-square)
 
