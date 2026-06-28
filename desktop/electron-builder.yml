@@ -50,6 +50,7 @@ win:
     - nsis
   # icon: build/icon.ico
   compression: store
+  signAndEditExecutable: false
 
 nsis:
   oneClick: false
