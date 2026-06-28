@@ -11,6 +11,9 @@ desktop/out/
 
 # local runtime data (never commit account data)
 data/
+# but DO track the bundled source data folder (build inputs, not runtime data)
+!/server/src/server/data/
+!/server/src/server/data/**
 *.enc
 token.enc
 
