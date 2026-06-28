@@ -15,6 +15,7 @@ permissions:
 
 jobs:
   build:
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -59,6 +60,16 @@ jobs:
             if [ -n "${!v}" ]; then echo "$v=${!v}" >> "$GITHUB_ENV"; fi
           done
 
+      # Windows Defender's real-time scanner stalls electron-builder's NSIS
+      # compression for many minutes on the hosted runner, which looks like a
+      # hang. Turning it off for the build run fixes it. Best-effort: if it can't
+      # be changed, the build still proceeds (just slowly).
+      - name: Speed up Windows packaging
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: pwsh
+        run: Set-MpPreference -DisableRealtimeMonitoring $true
+
       - name: Build app
         run: npm run build
 
@@ -71,7 +82,7 @@ jobs:
             desktop/out/*.dmg
             desktop/out/*.AppImage
             desktop/out/*.deb
-            desktop/out/*.yml
+            desktop/out/latest*.yml
             desktop/out/*.blockmap
           if-no-files-found: ignore
 
@@ -79,11 +90,21 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          body: |
+            ### Download Caskt
+
+            Grab the one installer for your platform:
+
+            - **Windows** — the `.exe`
+            - **macOS** (Apple Silicon, M1 and newer) — the `-arm64.dmg`
+            - **Linux** — the `.AppImage` (portable, just run it) or the `.deb`
+
+            Once installed, Caskt keeps itself up to date. The `.yml` and `.blockmap` files below are used by the auto-updater, so you can ignore them.
           files: |
             desktop/out/*.exe
             desktop/out/*.dmg
             desktop/out/*.AppImage
             desktop/out/*.deb
-            desktop/out/*.yml
+            desktop/out/latest*.yml
             desktop/out/*.blockmap
           fail_on_unmatched_files: false
