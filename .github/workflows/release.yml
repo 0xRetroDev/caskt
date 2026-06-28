@@ -77,9 +77,6 @@ jobs:
       - name: Build app
         run: npm run build
 
-      - name: Build app
-        run: npm run build
-
       - name: Upload installers
         uses: actions/upload-artifact@v4
         with:
