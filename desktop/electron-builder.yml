@@ -29,13 +29,13 @@ files:
 # The server and UI live in sibling workspaces; ship their build output and the
 # server's runtime dependencies as resources next to the app.
 extraResources:
-  - from: ../server/package.json
+  - from: staging/server/package.json
     to: server/package.json
-  - from: ../server/dist
+  - from: staging/server/dist
     to: server/dist
-  - from: ../server/node_modules
+  - from: staging/server/node_modules
     to: server/node_modules
-  - from: ../ui/dist
+  - from: staging/ui/dist
     to: ui/dist
   - from: build/icon.png
     to: desktop/build/icon.png
