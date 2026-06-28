@@ -4,12 +4,17 @@
   "private": true,
   "description": "Caskt desktop shell. Runs the local server in-process and hosts the UI, with a tray so scheduled moves keep running in the background.",
   "license": "MIT",
-  "author": "0xRetroDev (https://0xretro.dev)",
+  "author": {
+    "name": "0xRetroDev",
+    "email": "hello@0xretro.dev",
+    "url": "https://0xretro.dev"
+  },
+  "homepage": "https://github.com/0xRetroDev/caskt",
   "main": "main.cjs",
   "scripts": {
     "prep": "node scripts/rebuild-native.cjs",
     "dev": "npm run prep && electron .",
-    "dist": "npm run prep && electron-builder",
+    "dist": "npm run prep && electron-builder --publish never",
     "dist:dir": "npm run prep && electron-builder --dir"
   },
   "dependencies": {
