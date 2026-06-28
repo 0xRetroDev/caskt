@@ -1,9 +1,5 @@
 name: release
 
-# Builds the desktop installers in public, on clean runners, for every tagged
-# release. This is the trust anchor: the published binaries come from this
-# workflow running this exact source, not from anyone's machine.
-
 on:
   push:
     tags:
@@ -30,10 +26,6 @@ jobs:
         with:
           node-version: 20
 
-      # On a tagged release, the tag is the single source of truth for the
-      # version: write it into the package.json files so the built app, the
-      # update metadata, and the GitHub release all carry the same number.
-      # Skipped for manual runs, which build from the committed version.
       - name: Set version from tag
         if: startsWith(github.ref, 'refs/tags/v')
         run: node scripts/set-version.cjs "${{ github.ref_name }}"
@@ -41,12 +33,6 @@ jobs:
       - name: Install dependencies
         run: npm run setup
 
-      # Expose signing credentials to the build only when the secrets actually
-      # exist. A missing secret expands to an empty string, and an empty CSC_LINK
-      # makes electron-builder try to sign with a blank certificate and fail. By
-      # writing each var to the environment only when it is non-empty, unsigned
-      # builds succeed today, and adding the secrets later turns signing on with
-      # no further changes to this workflow.
       - name: Configure code signing
         shell: bash
         env:
@@ -60,22 +46,22 @@ jobs:
             if [ -n "${!v}" ]; then echo "$v=${!v}" >> "$GITHUB_ENV"; fi
           done
 
-      # Windows Defender's real-time scanner stalls electron-builder's NSIS
-      # compression for many minutes on the hosted runner, which looks like a
-      # hang. Turning it off for the build run fixes it. Best-effort: if it can't
-      # be changed, the build still proceeds (just slowly).
       - name: Speed up Windows packaging
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           Set-MpPreference -DisableRealtimeMonitoring $true
           Add-MpPreference -ExclusionPath "${{ github.workspace }}"
-          Add-MpPreference -ExclusionPath "$env:LOCALAPPDATA\electron-builder"
-          Add-MpPreference -ExclusionPath "$env:USERPROFILE\AppData\Local\Temp"
           Get-MpPreference | Select-Object DisableRealtimeMonitoring, ExclusionPath
 
       - name: Build app
         run: npm run build
+        timeout-minutes: 10
+
+      - name: List hung processes on timeout
+        if: always() && runner.os == 'Windows'
+        shell: pwsh
+        run: Get-Process | Where-Object { $_.ProcessName -match 'rcedit|makensis|electron|node' } | Format-Table -AutoSize
 
       - name: Upload installers
         uses: actions/upload-artifact@v4
