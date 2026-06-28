@@ -21,6 +21,7 @@ files:
   - preload.cjs
   - package.json
   - node_modules/**/*
+  - "!**/BUILD.md"
 
 # The server and UI live in sibling workspaces; ship their build output and the
 # server's runtime dependencies as resources next to the app.
