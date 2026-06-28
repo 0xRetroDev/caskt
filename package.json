@@ -19,5 +19,8 @@
     "dev": "npm run build:renderer && npm --prefix desktop run dev",
     "test": "npm --prefix server test",
     "typecheck": "npm --prefix server run typecheck"
+  },
+  "devDependencies": {
+    "electron-builder": "^25.1.8"
   }
 }
