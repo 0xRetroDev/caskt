@@ -1,5 +1,9 @@
 name: release
 
+# Builds the desktop installers in public, on clean runners, for every tagged
+# release. This is the trust anchor: the published binaries come from this
+# workflow running this exact source, not from anyone's machine.
+
 on:
   push:
     tags:
@@ -15,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2022, macos-latest, ubuntu-latest]
+        os: [windows-latest, macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -26,6 +30,10 @@ jobs:
         with:
           node-version: 20
 
+      # On a tagged release, the tag is the single source of truth for the
+      # version: write it into the package.json files so the built app, the
+      # update metadata, and the GitHub release all carry the same number.
+      # Skipped for manual runs, which build from the committed version.
       - name: Set version from tag
         if: startsWith(github.ref, 'refs/tags/v')
         run: node scripts/set-version.cjs "${{ github.ref_name }}"
@@ -33,6 +41,12 @@ jobs:
       - name: Install dependencies
         run: npm run setup
 
+      # Expose signing credentials to the build only when the secrets actually
+      # exist. A missing secret expands to an empty string, and an empty CSC_LINK
+      # makes electron-builder try to sign with a blank certificate and fail. By
+      # writing each var to the environment only when it is non-empty, unsigned
+      # builds succeed today, and adding the secrets later turns signing on with
+      # no further changes to this workflow.
       - name: Configure code signing
         shell: bash
         env:
@@ -46,23 +60,33 @@ jobs:
             if [ -n "${!v}" ]; then echo "$v=${!v}" >> "$GITHUB_ENV"; fi
           done
 
-      - name: Speed up Windows packaging
+      # electron-builder downloads NSIS into its cache on first use, and on
+      # GitHub's hosted Windows runners that download/extract step has been
+      # observed to silently hang or leave makensis.exe missing from the cache
+      # (electron-builder/electron-builder#8613). Fetching and extracting it
+      # ourselves, into the exact path electron-builder expects, sidesteps
+      # whatever is going wrong inside electron-builder's own resolution and
+      # lets us see the extraction succeed or fail instead of hanging blind.
+      - name: Manually fetch and extract NSIS
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Add-MpPreference -ExclusionProcess "makensis.exe"
-          Add-MpPreference -ExclusionProcess "electron-builder.exe"
-          Add-MpPreference -ExclusionProcess "node.exe"
-          Get-MpPreference | Select-Object ExclusionProcessh
-
-      - name: Clear electron-builder cache
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: Remove-Item -Recurse -Force "$env:LOCALAPPDATA\electron-builder\Cache" -ErrorAction SilentlyContinue
+          $cacheDir = "$env:LOCALAPPDATA\electron-builder\Cache\nsis\nsis-3.0.4.1"
+          New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
+          Invoke-WebRequest -Uri "https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-3.0.4.1/nsis-3.0.4.1.7z" -OutFile "$cacheDir\nsis.7z"
+          7z x "$cacheDir\nsis.7z" -o"$cacheDir" -y
+          Write-Host "--- Extracted NSIS cache contents ---"
+          Get-ChildItem -Recurse $cacheDir
+          if (-not (Test-Path "$cacheDir\Bin\makensis.exe")) {
+            Write-Error "makensis.exe missing after manual extraction"
+            exit 1
+          }
 
       - name: Build app
         run: npm run build
-        timeout-minutes: 10
+        timeout-minutes: 15
+        env:
+          ELECTRON_BUILDER_NSIS_DIR: ${{ env.LOCALAPPDATA }}\electron-builder\Cache\nsis\nsis-3.0.4.1\Bin
 
       - name: List all processes on timeout
         if: always() && runner.os == 'Windows'
