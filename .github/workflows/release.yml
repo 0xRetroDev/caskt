@@ -54,14 +54,19 @@ jobs:
           Add-MpPreference -ExclusionPath "${{ github.workspace }}"
           Get-MpPreference | Select-Object DisableRealtimeMonitoring, ExclusionPath
 
+      - name: Clear electron-builder cache
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Remove-Item -Recurse -Force "$env:LOCALAPPDATA\electron-builder\Cache" -ErrorAction SilentlyContinue
+
       - name: Build app
         run: npm run build
         timeout-minutes: 10
 
-      - name: List hung processes on timeout
+      - name: List all processes on timeout
         if: always() && runner.os == 'Windows'
         shell: pwsh
-        run: Get-Process | Where-Object { $_.ProcessName -match 'rcedit|makensis|electron|node' } | Format-Table -AutoSize
+        run: Get-Process | Sort-Object CPU -Descending | Select-Object -First 20 | Format-Table -AutoSize
 
       - name: Upload installers
         uses: actions/upload-artifact@v4
