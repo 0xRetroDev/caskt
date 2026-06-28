@@ -71,22 +71,24 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $cacheDir = "$env:LOCALAPPDATA\electron-builder\Cache\nsis\nsis-3.0.4.1"
+          $cacheDir = "D:\electron-builder\Cache\nsis\nsis-3.0.4.1"
           New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
           Invoke-WebRequest -Uri "https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-3.0.4.1/nsis-3.0.4.1.7z" -OutFile "$cacheDir\nsis.7z"
           7z x "$cacheDir\nsis.7z" -o"$cacheDir" -y
           Write-Host "--- Extracted NSIS cache contents ---"
-          Get-ChildItem -Recurse $cacheDir
+          Get-ChildItem -Recurse "$cacheDir\Bin"
           if (-not (Test-Path "$cacheDir\Bin\makensis.exe")) {
             Write-Error "makensis.exe missing after manual extraction"
+            exit 1
+          }
+          if (-not (Test-Path "$cacheDir\Bin\elevate.exe")) {
+            Write-Error "elevate.exe missing after manual extraction"
             exit 1
           }
 
       - name: Build app
         run: npm run build
         timeout-minutes: 15
-        env:
-          ELECTRON_BUILDER_NSIS_DIR: ${{ env.LOCALAPPDATA }}\electron-builder\Cache\nsis\nsis-3.0.4.1\Bin
 
       - name: List all processes on timeout
         if: always() && runner.os == 'Windows'
