@@ -39,6 +39,7 @@ jobs:
         run: node scripts/set-version.cjs "${{ github.ref_name }}"
 
       - name: Install dependencies
+        shell: bash
         run: |
           rm -rf server/node_modules ui/node_modules desktop/node_modules
           npm run setup
