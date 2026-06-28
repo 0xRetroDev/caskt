@@ -33,6 +33,11 @@ jobs:
       - name: Install dependencies
         run: npm run setup
 
+      - name: Check server node_modules size
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: (Get-ChildItem -Recurse server/node_modules -File).Count
+
       - name: Configure code signing
         shell: bash
         env:
