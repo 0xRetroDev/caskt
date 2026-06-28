@@ -14,7 +14,7 @@
   "scripts": {
     "prep": "node scripts/rebuild-native.cjs",
     "dev": "npm run prep && electron .",
-    "dist": "npm run prep && electron-builder --publish never",
+    "dist": "npm run prep && node scripts/stage-resources.cjs && electron-builder --publish never",
     "dist:dir": "npm run prep && electron-builder --dir"
   },
   "dependencies": {
@@ -23,6 +23,6 @@
   "devDependencies": {
     "@electron/rebuild": "^3.6.0",
     "electron": "^31.0.0",
-    "electron-builder": "^24.13.2"
+    "electron-builder": "^25.1.8"
   }
 }
