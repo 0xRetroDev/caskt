@@ -40,16 +40,27 @@ jobs:
       - name: Install dependencies
         run: npm run setup
 
-      - name: Build app
-        run: npm run build
+      # Expose signing credentials to the build only when the secrets actually
+      # exist. A missing secret expands to an empty string, and an empty CSC_LINK
+      # makes electron-builder try to sign with a blank certificate and fail. By
+      # writing each var to the environment only when it is non-empty, unsigned
+      # builds succeed today, and adding the secrets later turns signing on with
+      # no further changes to this workflow.
+      - name: Configure code signing
+        shell: bash
         env:
-          # electron-builder reads signing credentials from the environment.
-          # Builds succeed unsigned when these are absent.
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          for v in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            if [ -n "${!v}" ]; then echo "$v=${!v}" >> "$GITHUB_ENV"; fi
+          done
+
+      - name: Build app
+        run: npm run build
 
       - name: Upload installers
         uses: actions/upload-artifact@v4
