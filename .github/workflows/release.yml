@@ -50,9 +50,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Set-MpPreference -DisableRealtimeMonitoring $true
-          Add-MpPreference -ExclusionPath "${{ github.workspace }}"
-          Get-MpPreference | Select-Object DisableRealtimeMonitoring, ExclusionPath
+          Add-MpPreference -ExclusionProcess "makensis.exe"
+          Add-MpPreference -ExclusionProcess "electron-builder.exe"
+          Add-MpPreference -ExclusionProcess "node.exe"
+          Get-MpPreference | Select-Object ExclusionProcessh
 
       - name: Clear electron-builder cache
         if: runner.os == 'Windows'
