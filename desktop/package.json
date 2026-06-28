@@ -1,6 +1,6 @@
 {
   "name": "caskt-desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Caskt desktop shell. Runs the local server in-process and hosts the UI, with a tray so scheduled moves keep running in the background.",
   "license": "MIT",
@@ -23,6 +23,6 @@
   "devDependencies": {
     "@electron/rebuild": "^3.6.0",
     "electron": "^31.0.0",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^24.13.3"
   }
 }

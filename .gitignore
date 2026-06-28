@@ -6,9 +6,11 @@ dist/
 out/
 *.tsbuildinfo
 
+# Release helper
+/release.cjs
+
 # packaged installers
 desktop/out/
-desktop/staging/ 
 
 # local runtime data (never commit account data)
 data/

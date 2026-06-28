@@ -13,23 +13,19 @@ directories:
   output: out
   buildResources: build
 
-asar: false
-
-# Files from THIS package that go inside the app. electron-updater is a runtime
-# dependency, so its module tree must be packed (electron-builder prunes
-# devDependencies automatically).
+# Files from THIS package that go inside the app (packed into app.asar).
+# electron-updater is a runtime dependency, so its module tree must be included;
+# electron-builder prunes devDependencies automatically.
 files:
   - main.cjs
   - preload.cjs
   - package.json
   - node_modules/**/*
-  - "!BUILD.md"
-  - "!LICENSE"
-  - "!README.md"
-  - "!SIGNING.md"
 
-# The server and UI live in sibling workspaces; ship their build output and the
-# server's runtime dependencies as resources next to the app.
+# The server and UI live in sibling workspaces. They are staged into desktop/
+# first (see scripts/stage-resources.cjs) and shipped as resources next to the
+# app. Staging keeps every source path inside the desktop package, which is what
+# avoids electron-builder's "<file> must be under <projectDir>" asar bug.
 extraResources:
   - from: staging/server/package.json
     to: server/package.json
@@ -55,8 +51,6 @@ win:
   target:
     - nsis
   icon: build/icon.ico
-  compression: store
-  signAndEditExecutable: false
 
 nsis:
   oneClick: false
