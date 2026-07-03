@@ -1,8 +1,15 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarClock, ExternalLink, Loader2, Lock, Pencil, StickyNote, X } from "lucide-react";
+import { CalendarClock, ExternalLink, Eye, Loader2, Lock, Pencil, StickyNote, X } from "lucide-react";
 import type { Item, PendingView, PinnedSchedule } from "../api/types";
-import { useCancelJob, useCsfloatListing, useCsfloatPrice, useScheduleMutations, useSettings } from "../api/hooks";
+import {
+  useCancelJob,
+  useCsfloatListing,
+  useCsfloatPrice,
+  useRefreshListing,
+  useScheduleMutations,
+  useSettings,
+} from "../api/hooks";
 import { rarityColor, rarityName } from "../lib/rarity";
 import { floatStr, cleanName, untilLabel, wear } from "../lib/format";
 import { useCurrency } from "../lib/currency";
@@ -34,6 +41,8 @@ export function ItemDetail({
   const market = useCsfloatPrice(item.name, item.float, csfloatConnected);
 
   const { list, delist, setNote } = useCsfloatListing();
+  const refreshListing = useRefreshListing();
+  const [liveWatchers, setLiveWatchers] = useState<number | undefined>(undefined);
   const [price, setPrice] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [note, setNoteText] = useState("");
@@ -53,6 +62,17 @@ export function ItemDetail({
     if (price === "" && suggestedUsd != null) setPrice(convert(suggestedUsd).toFixed(2));
   }, [suggestedUsd]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // On open, pull this listing's live figures (watcher count) so the number is
+  // current without waiting for the periodic stall refresh. Runs per item.
+  useEffect(() => {
+    if (!csfloatConnected || !item.listing || pending) return;
+    setLiveWatchers(undefined);
+    refreshListing.mutate(item.listing.id, {
+      onSuccess: (res) => setLiveWatchers(res.listing?.watchers ?? 0),
+    });
+  }, [item.assetId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const watchers = liveWatchers ?? item.listing?.watchers ?? 0;
   const inStorage = item.location !== "inventory";
   const priceNum = Number(price);
   const priceValid = Number.isFinite(priceNum) && priceNum > 0;
@@ -200,6 +220,17 @@ export function ItemDetail({
                 </span>
                 <span className="text-[11px] text-fg-dim">
                   {item.listing.type === "auction" ? "Auction" : "Buy now"}
+                </span>
+                <span
+                  className="flex items-center gap-1 text-[11px] text-fg-dim"
+                  title={`${watchers} ${watchers === 1 ? "person is" : "people are"} watching this listing on CSFloat`}
+                >
+                  {refreshListing.isPending ? (
+                    <Loader2 size={11} className="animate-spin" />
+                  ) : (
+                    <Eye size={11} className="shrink-0" />
+                  )}
+                  {refreshListing.isPending && liveWatchers === undefined ? "…" : watchers}
                 </span>
               </div>
               <a
@@ -402,7 +433,13 @@ export function ItemDetail({
             </div>
             <div className="flex flex-wrap gap-2">
               {item.stickers.map((s) => (
-                <Applied key={`s${s.slot}`} image={s.image} name={s.name} sub={s.wear !== undefined ? `${Math.round((1 - s.wear) * 100)}%` : undefined} price={format(s.price)} />
+                <Applied
+                  key={`s${s.slot}`}
+                  image={s.image}
+                  name={s.name}
+                  sub={s.wear !== undefined ? (s.wear > 0 ? `${Math.round(s.wear * 100)}% scraped` : "Pristine") : undefined}
+                  price={format(s.price)}
+                />
               ))}
               {item.charms.map((c) => (
                 <Applied key={`c${c.slot}`} image={c.image} name={c.name} price={format(c.price)} />

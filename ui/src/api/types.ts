@@ -26,6 +26,17 @@ export interface Rates {
   rates: Record<string, number>;
 }
 
+export interface CsfloatListingView {
+  id: string;
+  /** Price in US cents (CSFloat is USD-denominated). */
+  price: number;
+  type: "buy_now" | "auction";
+  /** Seller's public note on the listing. */
+  description?: string;
+  /** Users currently watching this listing on CSFloat. */
+  watchers?: number;
+}
+
 export interface Item {
   assetId: string;
   defindex: number;
@@ -50,7 +61,7 @@ export interface Item {
   category: string;
   collection: string | null;
   equipped?: ("CT" | "T")[];
-  listing?: { id: string; price: number; type: "buy_now" | "auction"; description?: string } | null;
+  listing?: CsfloatListingView | null;
 }
 
 export interface StorageUnit {

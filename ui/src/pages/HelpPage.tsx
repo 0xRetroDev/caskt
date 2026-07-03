@@ -185,7 +185,7 @@ export function HelpPage() {
           </P>
           <P>
             The <B>Value</B> page charts your total over time and headlines the change over a window you
-            choose with the <B>7d / 30d</B> toggle. The figure compares your latest total to the snapshot
+            choose with the <B>24h / 7d / 30d</B> toggle. The figure compares your latest total to the snapshot
             nearest the start of that window, so it is a real period change rather than just the gap since
             your last sync.
           </P>

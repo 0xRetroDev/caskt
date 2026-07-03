@@ -111,6 +111,19 @@ export function useCsfloatListing() {
 }
 
 /**
+ * Pull live figures (watcher count, price) for a single listing on demand — used
+ * when the user opens a listed item, so the count is current without waiting for
+ * the 30-minute stall refresh. Invalidates items so the grid reflects it too.
+ */
+export function useRefreshListing() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.refreshCsfloatListing(id),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["items"] }),
+  });
+}
+
+/**
  * Connect, disconnect, and refresh for the CSFloat account, shared by the
  * settings dialog and the CSFloat hub so the flow lives in one place. Holds its
  * own busy/message state; the key input stays with the caller.

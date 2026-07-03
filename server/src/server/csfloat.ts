@@ -112,6 +112,8 @@ export interface CsfloatListing {
   marketHashName?: string;
   /** Seller's public note on the listing. */
   description?: string;
+  /** How many users are currently watching this listing on CSFloat. */
+  watchers: number;
 }
 
 interface RawListing {
@@ -121,6 +123,7 @@ interface RawListing {
   state?: string;
   created_at?: string;
   description?: string;
+  watchers?: number;
   item?: { asset_id?: string | number; market_hash_name?: string };
 }
 
@@ -134,6 +137,7 @@ function mapRow(r: RawListing): CsfloatListing | null {
     type: r.type === "auction" ? "auction" : "buy_now",
     state: String(r.state),
     createdAt: String(r.created_at ?? ""),
+    watchers: Number(r.watchers) || 0,
     ...(r.item?.market_hash_name ? { marketHashName: r.item.market_hash_name } : {}),
     ...(r.description ? { description: String(r.description) } : {}),
   };
@@ -190,6 +194,22 @@ async function fetchListingsPaged(
   }
 
   return out;
+}
+
+/**
+ * Fetch one listing by id so the UI can pull live figures (watcher count, price)
+ * on demand when the user opens it, rather than waiting for the periodic stall
+ * refresh. Returns null when the listing is gone (sold or delisted elsewhere),
+ * so the caller can drop it from the local snapshot.
+ */
+export async function fetchListing(id: string, apiKey: string): Promise<CsfloatListing | null> {
+  const res = await gatedFetch(`/listings/${encodeURIComponent(id)}`, { method: "GET" }, apiKey);
+  if (res.status === 404) return null;
+  if (res.status === 401) throw new Error("CSFloat rejected the API key");
+  if (!res.ok) throw new Error(`CSFloat responded ${res.status}`);
+  const body = (await res.json()) as RawListing | { data?: RawListing };
+  const raw = body && typeof body === "object" && "data" in body && body.data ? body.data : (body as RawListing);
+  return mapRow(raw);
 }
 
 export interface CsfloatIdentity {

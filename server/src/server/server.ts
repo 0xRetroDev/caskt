@@ -14,9 +14,10 @@ import { Jobs, type Job } from "./jobs.js";
 import { PendingMoves } from "./pendingMoves.js";
 import { notifyScheduleRun, notifyMove, notifyCsfloat, sendTestWebhook } from "./discord.js";
 import { serializeItems } from "./serialize.js";
-import type { ListingMap } from "./serialize.js";
+import type { ListingMap, ListingDTO } from "./serialize.js";
 import {
   fetchUserListings,
+  fetchListing,
   verifyKey,
   fetchMarketSample,
   summarizeMarket,
@@ -215,6 +216,7 @@ export function createServer(config: ServerConfig): RunningServer {
           id: r.id,
           price: r.price,
           type: r.type,
+          watchers: r.watchers,
           ...(r.description ? { description: r.description } : {}),
         });
       listings = next;
@@ -622,6 +624,30 @@ export function createServer(config: ServerConfig): RunningServer {
     })
 
     .post("csfloat/refresh", async () => ({ count: await refreshListings() }))
+
+    // Refresh a single listing on demand (the user opened it), so watcher counts
+    // and price are live without waiting for the periodic stall refresh. Updates
+    // the local snapshot in place and returns the fresh listing, or null if it's
+    // gone (sold or delisted elsewhere), in which case it's dropped locally.
+    .post("csfloat/listings/:id/refresh", async ({ params }) => {
+      const key = getSettings().csfloatApiKey;
+      if (!key) throw new HttpError(400, "CSFloat is not connected");
+      const id = params["id"]!;
+      const fresh = await fetchListing(id, key);
+      if (!fresh) {
+        applyDelisted(id);
+        return { listing: null };
+      }
+      const dto: ListingDTO = {
+        id: fresh.id,
+        price: fresh.price,
+        type: fresh.type,
+        watchers: fresh.watchers,
+        ...(fresh.description ? { description: fresh.description } : {}),
+      };
+      listings.set(fresh.assetId, dto);
+      return { listing: dto };
+    })
 
     // CSFloat market price for one item. Gated on the key: without it, no CSFloat
     // code runs and the route reports the feature as unavailable.

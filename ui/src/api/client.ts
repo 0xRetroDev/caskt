@@ -1,6 +1,7 @@
 import type {
   AppSettings,
   AuthState,
+  CsfloatListingView,
   CsfloatPrice,
   Filter,
   Item,
@@ -85,6 +86,8 @@ export const api = {
       body: JSON.stringify(key ? { key } : {}),
     }),
   refreshCsfloat: () => req<{ count: number }>("/csfloat/refresh", { method: "POST" }),
+  refreshCsfloatListing: (id: string) =>
+    req<{ listing: CsfloatListingView | null }>(`/csfloat/listings/${id}/refresh`, { method: "POST" }),
   csfloatPrice: (name: string, float: number) =>
     req<CsfloatPrice>(`/csfloat/price?name=${encodeURIComponent(name)}&float=${float}`),
   listCsfloat: (assetId: string, priceCents: number, note?: string) =>

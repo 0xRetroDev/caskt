@@ -8,6 +8,9 @@ import { useCurrency } from "../lib/currency";
 
 const GOLD = "#e8a82e";
 
+// The value-trend windows read as durations: a single day is friendlier as "24h".
+const windowLabel = (days: number) => (days === 1 ? "24h" : `${days}d`);
+
 const CATEGORY_LABEL: Record<string, string> = {
   Skin: "Skins",
   Knife: "Knives",
@@ -112,7 +115,7 @@ export function ValuePage() {
           </div>
           <div className="flex flex-col items-end gap-2">
             <div className="flex rounded-md border border-line bg-ink-800/60 p-0.5">
-              {[7, 30].map((d) => (
+              {[1, 7, 30].map((d) => (
                 <button
                   key={d}
                   onClick={() => setWindowDays(d)}
@@ -120,7 +123,7 @@ export function ValuePage() {
                     windowDays === d ? "bg-accent/20 text-accent" : "text-fg-faint hover:text-fg-dim"
                   }`}
                 >
-                  {d}d
+                  {windowLabel(d)}
                 </button>
               ))}
             </div>
@@ -136,7 +139,7 @@ export function ValuePage() {
                   {format(trend.delta)} ({trend.pct >= 0 ? "+" : ""}
                   {trend.pct.toFixed(1)}%)
                 </span>
-                <span className="text-[11px] font-500 opacity-70">{windowDays}d</span>
+                <span className="text-[11px] font-500 opacity-70">{windowLabel(windowDays)}</span>
               </div>
             )}
           </div>
@@ -257,7 +260,7 @@ function Movers({ windowDays }: { windowDays: number }) {
     <div className="mt-4 rounded-card border border-line bg-ink-800 p-4">
       <div className="mb-3 flex items-center justify-between">
         <div className="text-xs font-600 uppercase tracking-wider text-fg-dim">
-          Movers · last {windowDays} days
+          Movers · {windowDays === 1 ? "last 24 hours" : `last ${windowDays} days`}
         </div>
         {data?.comparedToDay != null && hasAny && (
           <div className="text-[11px] text-fg-faint">vs {dateShort(data.comparedToDay * 86_400_000)}</div>

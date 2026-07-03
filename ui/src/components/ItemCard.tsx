@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowRight, Boxes, CalendarClock, Check, Lock, Package } from "lucide-react";
+import { ArrowRight, Boxes, CalendarClock, Check, Eye, Lock, Package } from "lucide-react";
 import type { Item, PendingView, PinnedSchedule } from "../api/types";
 import { rarityColor } from "../lib/rarity";
 import { floatStr, cleanName, untilLabel } from "../lib/format";
@@ -224,13 +224,25 @@ function ListedTag({
   format: (usd: number | null | undefined) => string;
 }) {
   const price = format(listing.price / 100);
+  const watchers = listing.watchers ?? 0;
   return (
-    <span
-      className="flex shrink-0 items-center gap-1 rounded bg-accent/15 px-1.5 py-0.5 text-[11px] font-600 text-accent ring-1 ring-accent/30"
-      title={`Listed on CSFloat for ${price}${listing.type === "auction" ? " (auction)" : ""}`}
-    >
-      <CsfloatMark size={11} className="shrink-0" />
-      {price}
+    <span className="flex shrink-0 items-center gap-1.5">
+      {watchers > 0 && (
+        <span
+          className="flex items-center gap-0.5 text-[11px] text-fg-dim"
+          title={`${watchers} ${watchers === 1 ? "person is" : "people are"} watching this listing on CSFloat`}
+        >
+          <Eye size={11} className="shrink-0" />
+          {watchers}
+        </span>
+      )}
+      <span
+        className="flex items-center gap-1 rounded bg-accent/15 px-1.5 py-0.5 text-[11px] font-600 text-accent ring-1 ring-accent/30"
+        title={`Listed on CSFloat for ${price}${listing.type === "auction" ? " (auction)" : ""}`}
+      >
+        <CsfloatMark size={11} className="shrink-0" />
+        {price}
+      </span>
     </span>
   );
 }

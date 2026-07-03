@@ -107,6 +107,13 @@ export function InventoryPage() {
 
   const hasFloatItems = useMemo(() => scoped.some((i) => i.float > 0 && i.paintIndex > 0), [scoped]);
 
+  // Combined tracked value of the current selection, shown in the action bar.
+  const selectedTotal = useMemo(() => {
+    let sum = 0;
+    for (const i of allItems.data ?? []) if (selected.has(i.assetId)) sum += i.price ?? 0;
+    return sum;
+  }, [allItems.data, selected]);
+
   const presentCollections = useMemo(() => {
     const set = new Set<string>();
     for (const i of scoped) if (i.collection) set.add(i.collection);
@@ -433,6 +440,7 @@ export function InventoryPage() {
       {selected.size > 0 && ((units.data?.length ?? 0) > 0 || csfloatConnected) && (
         <MoveBar
           count={selected.size}
+          totalValue={selectedTotal}
           units={units.data ?? []}
           onMove={(to, name) => setAction({ mode: "move", to, name })}
           onWithdraw={() => setAction({ mode: "withdraw" })}

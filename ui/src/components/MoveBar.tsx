@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { ArrowDownToLine, ArrowUpToLine, CalendarClock, X } from "lucide-react";
 import type { StorageUnit } from "../api/types";
+import { useCurrency } from "../lib/currency";
 import { CsfloatMark } from "./CsfloatMark";
 
 export function MoveBar({
   count,
+  totalValue,
   units,
   onMove,
   onWithdraw,
@@ -14,6 +16,7 @@ export function MoveBar({
   onClear,
 }: {
   count: number;
+  totalValue: number;
   units: StorageUnit[];
   onMove: (casketId: string, name: string) => void;
   onWithdraw: () => void;
@@ -22,6 +25,7 @@ export function MoveBar({
   csfloatConnected?: boolean;
   onClear: () => void;
 }) {
+  const { format } = useCurrency();
   const firstOpen = units.find((u) => u.count < u.capacity);
   const [dest, setDest] = useState(firstOpen?.casketId ?? units[0]?.casketId ?? "");
   const [menu, setMenu] = useState(false);
@@ -34,6 +38,11 @@ export function MoveBar({
           <X size={16} />
         </button>
         <span className="num text-sm text-fg">{count} selected</span>
+        {totalValue > 0 && (
+          <span className="num text-sm font-medium text-accent" title="Total value of selected items">
+            {format(totalValue)}
+          </span>
+        )}
 
         {units.length > 0 && (
           <>

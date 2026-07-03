@@ -16,6 +16,8 @@ export interface ListingDTO {
   type: "buy_now" | "auction";
   /** Seller's public note on the listing. */
   description?: string;
+  /** Users currently watching this listing on CSFloat. */
+  watchers?: number;
 }
 
 /** What the UI receives: the core item plus presentation extras and images. */
