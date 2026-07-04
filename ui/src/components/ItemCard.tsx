@@ -162,7 +162,10 @@ export function ItemCard({
             <span className="num text-sm font-medium text-fg">{format(item.price)}</span>
             {item.listing && <ListedTag listing={item.listing} format={format} />}
           </div>
-          <LocationChip item={item} label={locationLabel} />
+          <div className="flex items-center justify-between gap-2">
+            <LocationChip item={item} label={locationLabel} />
+            {item.listing && (item.listing.watchers ?? 0) > 0 && <WatchersTag watchers={item.listing.watchers!} />}
+          </div>
         </div>
       </div>
     </div>
@@ -224,25 +227,27 @@ function ListedTag({
   format: (usd: number | null | undefined) => string;
 }) {
   const price = format(listing.price / 100);
-  const watchers = listing.watchers ?? 0;
   return (
-    <span className="flex shrink-0 items-center gap-1.5">
-      {watchers > 0 && (
-        <span
-          className="flex items-center gap-0.5 text-[11px] text-fg-dim"
-          title={`${watchers} ${watchers === 1 ? "person is" : "people are"} watching this listing on CSFloat`}
-        >
-          <Eye size={11} className="shrink-0" />
-          {watchers}
-        </span>
-      )}
-      <span
-        className="flex items-center gap-1 rounded bg-accent/15 px-1.5 py-0.5 text-[11px] font-600 text-accent ring-1 ring-accent/30"
-        title={`Listed on CSFloat for ${price}${listing.type === "auction" ? " (auction)" : ""}`}
-      >
-        <CsfloatMark size={11} className="shrink-0" />
-        {price}
-      </span>
+    <span
+      className="flex shrink-0 items-center gap-1 rounded bg-accent/15 px-1.5 py-0.5 text-[11px] font-600 text-accent ring-1 ring-accent/30"
+      title={`Listed on CSFloat for ${price}${listing.type === "auction" ? " (auction)" : ""}`}
+    >
+      <CsfloatMark size={11} className="shrink-0" />
+      {price}
+    </span>
+  );
+}
+
+// Watcher count for a listed item. Sits on the location row so it never competes
+// with the item's price for space on the row above.
+function WatchersTag({ watchers }: { watchers: number }) {
+  return (
+    <span
+      className="flex shrink-0 items-center gap-0.5 text-[11px] text-fg-dim"
+      title={`${watchers} ${watchers === 1 ? "person is" : "people are"} watching this listing on CSFloat`}
+    >
+      <Eye size={11} className="shrink-0" />
+      {watchers}
     </span>
   );
 }
