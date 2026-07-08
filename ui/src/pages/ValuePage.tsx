@@ -109,8 +109,8 @@ export function ValuePage() {
             <div className="text-[11px] font-600 uppercase tracking-[0.18em] text-accent">Portfolio value</div>
             <div className="num mt-1 text-4xl font-700 text-fg">{value.data ? format(total) : "—"}</div>
             <div className="mt-1 text-[11px] text-fg-faint">
-              Steam Community Market · updates daily
-              {value.data && value.data.unpricedCount > 0 && <> · {value.data.unpricedCount} unpriced</>}
+              Steam Community Market
+              {value.data && value.data.unpricedCount > 0 && <></>}
             </div>
           </div>
           <div className="flex flex-col items-end gap-2">

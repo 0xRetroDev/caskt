@@ -215,7 +215,10 @@ export class Inventory {
     comparedToDay: number | null;
   } {
     const today = Math.floor(Date.now() / 86_400_000);
-    const past = this.store.pricePointsNear(today - days);
+    // Bound the baseline to days strictly before today: today's point is written
+    // by the current sync, so comparing against it yields zero movement. Without
+    // this, a missing yesterday makes the 24h window collapse onto today.
+    const past = this.store.pricePointsNear(today - days, today);
     const current = new Map<string, { price: number; qty: number }>();
     for (const it of this.store.allItems()) {
       if (!it.name || it.price == null || it.price <= 0) continue;

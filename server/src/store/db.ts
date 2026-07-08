@@ -379,11 +379,16 @@ export class Store {
   }
 
   /** Prices from the recorded day nearest to targetDay (for over-time comparison).
-   *  Returns the actual day used so callers can show the comparison date. */
-  pricePointsNear(targetDay: number): { day: number | null; prices: Record<string, number> } {
-    const row = this.db.prepare("SELECT day FROM price_points ORDER BY ABS(day - ?) LIMIT 1").get(targetDay) as
-      | { day: number }
-      | undefined;
+   *  Returns the actual day used so callers can show the comparison date.
+   *  `beforeDay` bounds the search to strictly-earlier days so a past-window
+   *  comparison never lands on today's own just-recorded prices (which would
+   *  make every delta zero — the 24h window is most sensitive to this). */
+  pricePointsNear(targetDay: number, beforeDay?: number): { day: number | null; prices: Record<string, number> } {
+    const row = (
+      beforeDay === undefined
+        ? this.db.prepare("SELECT day FROM price_points ORDER BY ABS(day - ?) LIMIT 1").get(targetDay)
+        : this.db.prepare("SELECT day FROM price_points WHERE day < ? ORDER BY ABS(day - ?) LIMIT 1").get(beforeDay, targetDay)
+    ) as { day: number } | undefined;
     if (!row) return { day: null, prices: {} };
     const rows = this.db.prepare("SELECT name, price FROM price_points WHERE day = ?").all(row.day) as {
       name: string;
