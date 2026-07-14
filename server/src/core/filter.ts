@@ -75,5 +75,18 @@ export function matchItem(item: Item, filter: Filter, now: number = Date.now()):
   }
   if (filter.nameTag !== undefined && !includesCI(item.customName, filter.nameTag)) return false;
 
+  // Items with no first-seen date were already in the inventory when Caskt first
+  // indexed it, so they are never "new" — they are the opposite, the oldest thing
+  // we know about.
+  if (filter.newerThan !== undefined) {
+    if (item.firstSeenAt === undefined || item.firstSeenAt < filter.newerThan) return false;
+  }
+
+  if (filter.equipped !== undefined) {
+    const has = !!item.equipped && item.equipped.length > 0;
+    if (has !== filter.equipped) return false;
+  }
+  if (filter.shuffled !== undefined && !!item.shuffled !== filter.shuffled) return false;
+
   return true;
 }

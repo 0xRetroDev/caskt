@@ -26,8 +26,12 @@ CREATE TABLE IF NOT EXISTS items (
   customName TEXT,
   stickers TEXT NOT NULL,
   charms TEXT NOT NULL,
+  musicId INTEGER,
   collection TEXT,
   equipped TEXT,
+  equippedSlots TEXT,
+  shuffled INTEGER,
+  firstSeenAt INTEGER,
   price REAL,
   syncedAt INTEGER NOT NULL
 );
@@ -115,8 +119,12 @@ interface ItemRow {
   customName: string | null;
   stickers: string;
   charms: string;
+  musicId: number | null;
   collection: string | null;
   equipped: string | null;
+  equippedSlots: string | null;
+  shuffled: number | null;
+  firstSeenAt: number | null;
   price: number | null;
   syncedAt: number;
 }
@@ -141,8 +149,12 @@ function rowToItem(r: ItemRow): Item {
   };
   if (r.protectedUntil !== null) item.protectedUntil = r.protectedUntil;
   if (r.customName !== null) item.customName = r.customName;
+  if (r.musicId !== null) item.musicId = r.musicId;
   if (r.collection !== null) item.collection = r.collection;
   if (r.equipped !== null) item.equipped = JSON.parse(r.equipped) as ("CT" | "T")[];
+  if (r.equippedSlots !== null) item.equippedSlots = JSON.parse(r.equippedSlots) as Item["equippedSlots"];
+  if (r.shuffled) item.shuffled = true;
+  if (r.firstSeenAt !== null) item.firstSeenAt = r.firstSeenAt;
   return item;
 }
 
@@ -216,6 +228,12 @@ export class Store {
     const cols = (this.db.prepare("PRAGMA table_info(items)").all() as { name: string }[]).map((c) => c.name);
     if (!cols.includes("collection")) this.db.exec("ALTER TABLE items ADD COLUMN collection TEXT");
     if (!cols.includes("equipped")) this.db.exec("ALTER TABLE items ADD COLUMN equipped TEXT");
+    if (!cols.includes("musicId")) this.db.exec("ALTER TABLE items ADD COLUMN musicId INTEGER");
+    if (!cols.includes("equippedSlots")) this.db.exec("ALTER TABLE items ADD COLUMN equippedSlots TEXT");
+    if (!cols.includes("shuffled")) this.db.exec("ALTER TABLE items ADD COLUMN shuffled INTEGER");
+    // Existing rows keep a NULL firstSeenAt: they were indexed before we tracked
+    // it, and dating them "now" would show a whole existing inventory as new.
+    if (!cols.includes("firstSeenAt")) this.db.exec("ALTER TABLE items ADD COLUMN firstSeenAt INTEGER");
     const sched = (this.db.prepare("PRAGMA table_info(schedules)").all() as { name: string }[]).map((c) => c.name);
     if (!sched.includes("kind")) this.db.exec("ALTER TABLE schedules ADD COLUMN kind TEXT");
     if (!sched.includes("listingJson")) this.db.exec("ALTER TABLE schedules ADD COLUMN listingJson TEXT");
@@ -243,25 +261,40 @@ export class Store {
   }
 
   /** Full replace used by a complete sync. Returns add/update/remove counts. */
-  replaceAll(items: Item[]): DiffCounts {
-    const existing = new Set(
-      (this.db.prepare("SELECT assetId FROM items").all() as { assetId: string }[]).map((r) => r.assetId),
-    );
+  replaceAll(items: Item[], now = Date.now()): DiffCounts {
+    const rows = this.db.prepare("SELECT assetId, firstSeenAt FROM items").all() as {
+      assetId: string;
+      firstSeenAt: number | null;
+    }[];
+    const existing = new Map(rows.map((r) => [r.assetId, r.firstSeenAt]));
     const incoming = new Set(items.map((i) => i.assetId));
     let added = 0;
     let updated = 0;
+
+    // On the very first sync every item is "new" to us, but none of it is new to
+    // the user — it is just their existing inventory being indexed for the first
+    // time. Dating it now would make a "newest" view meaningless, so those items
+    // are left with no first-seen date. Only items that turn up in a LATER sync
+    // are genuinely new arrivals.
+    const firstEverSync = existing.size === 0 && this.getMeta("lastFullSync") === null;
 
     const upsert = this.upsertStmt();
     const del = this.db.prepare("DELETE FROM items WHERE assetId = ?");
 
     const tx = this.db.transaction((list: Item[]) => {
       for (const item of list) {
-        if (existing.has(item.assetId)) updated++;
-        else added++;
+        const seen = existing.get(item.assetId);
+        if (existing.has(item.assetId)) {
+          updated++;
+          if (seen !== null) item.firstSeenAt = seen;
+        } else {
+          added++;
+          if (!firstEverSync) item.firstSeenAt = now;
+        }
         upsert.run(itemParams(item));
       }
       let removed = 0;
-      for (const id of existing) {
+      for (const id of existing.keys()) {
         if (!incoming.has(id)) {
           del.run(id);
           removed++;
@@ -275,17 +308,24 @@ export class Store {
   }
 
   private upsertStmt() {
+    // firstSeenAt is written once, on insert, and never updated: it is the record
+    // of when the item first appeared, so a later sync must not move it. Every
+    // other column is refreshed from the incoming row.
     return this.db.prepare(`
       INSERT INTO items (assetId, defindex, paintIndex, paintSeed, float, rarity, quality,
-        stattrak, souvenir, name, location, protectedUntil, customName, stickers, charms, collection, equipped, price, syncedAt)
+        stattrak, souvenir, name, location, protectedUntil, customName, stickers, charms, musicId,
+        collection, equipped, equippedSlots, shuffled, firstSeenAt, price, syncedAt)
       VALUES (@assetId, @defindex, @paintIndex, @paintSeed, @float, @rarity, @quality,
-        @stattrak, @souvenir, @name, @location, @protectedUntil, @customName, @stickers, @charms, @collection, @equipped, @price, @syncedAt)
+        @stattrak, @souvenir, @name, @location, @protectedUntil, @customName, @stickers, @charms, @musicId,
+        @collection, @equipped, @equippedSlots, @shuffled, @firstSeenAt, @price, @syncedAt)
       ON CONFLICT(assetId) DO UPDATE SET
         defindex=excluded.defindex, paintIndex=excluded.paintIndex, paintSeed=excluded.paintSeed,
         float=excluded.float, rarity=excluded.rarity, quality=excluded.quality,
         stattrak=excluded.stattrak, souvenir=excluded.souvenir, name=excluded.name,
         location=excluded.location, protectedUntil=excluded.protectedUntil, customName=excluded.customName,
-        stickers=excluded.stickers, charms=excluded.charms, collection=excluded.collection, equipped=excluded.equipped, price=excluded.price, syncedAt=excluded.syncedAt
+        stickers=excluded.stickers, charms=excluded.charms, musicId=excluded.musicId,
+        collection=excluded.collection, equipped=excluded.equipped, equippedSlots=excluded.equippedSlots,
+        shuffled=excluded.shuffled, price=excluded.price, syncedAt=excluded.syncedAt
     `);
   }
 
@@ -515,8 +555,12 @@ function itemParams(item: Item): ItemRow {
     customName: item.customName ?? null,
     stickers: JSON.stringify(item.stickers),
     charms: JSON.stringify(item.charms),
+    musicId: item.musicId ?? null,
     collection: item.collection ?? null,
     equipped: item.equipped && item.equipped.length ? JSON.stringify(item.equipped) : null,
+    equippedSlots: item.equippedSlots && item.equippedSlots.length ? JSON.stringify(item.equippedSlots) : null,
+    shuffled: item.shuffled ? 1 : null,
+    firstSeenAt: item.firstSeenAt ?? null,
     price: item.price ?? null,
     syncedAt: item.syncedAt,
   };

@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowRight, Boxes, CalendarClock, Check, Eye, Lock, Package } from "lucide-react";
+import { ArrowRight, Boxes, CalendarClock, Check, Eye, Lock, Package, Shuffle } from "lucide-react";
 import type { Item, PendingView, PinnedSchedule } from "../api/types";
 import { rarityColor } from "../lib/rarity";
 import { floatStr, cleanName, untilLabel } from "../lib/format";
@@ -143,7 +143,9 @@ export function ItemCard({
               {item.souvenir && <span className="text-[10px] font-semibold text-rarity-gold">SV</span>}
               <span className="line-clamp-2 text-[13px] leading-tight text-fg">{cleanName(item.name)}</span>
             </div>
-            {item.equipped && item.equipped.length > 0 && <EquippedDots teams={item.equipped} />}
+            {item.equipped && item.equipped.length > 0 && (
+              <EquippedDots teams={item.equipped} shuffled={item.shuffled} />
+            )}
           </div>
         </div>
 
@@ -252,12 +254,19 @@ function WatchersTag({ watchers }: { watchers: number }) {
   );
 }
 
-function EquippedDots({ teams }: { teams: ("CT" | "T")[] }) {
+// A dot per team the item is equipped on, plus a shuffle glyph when the item
+// shares its loadout slot with others — CS2 then rotates between them per match,
+// so "equipped" and "one of several equipped" are worth telling apart.
+function EquippedDots({ teams, shuffled }: { teams: ("CT" | "T")[]; shuffled?: boolean }) {
   const label = teams.map((t) => (t === "CT" ? "Counter-Terrorists" : "Terrorists")).join(" and ");
+  const title = shuffled
+    ? `In a loadout shuffle on ${label} — CS2 rotates between this and the other skins in the slot`
+    : `Equipped on ${label}`;
   return (
-    <span className="flex shrink-0 items-center gap-1 pt-0.5" title={`Equipped on ${label}`}>
+    <span className="flex shrink-0 items-center gap-1 pt-0.5" title={title}>
       {teams.includes("CT") && <span className="h-2 w-2 rounded-full bg-blue-400" aria-label="CT" />}
       {teams.includes("T") && <span className="h-2 w-2 rounded-full bg-orange-400" aria-label="T" />}
+      {shuffled && <Shuffle size={11} className="text-fg-dim" aria-label="In a shuffle" />}
     </span>
   );
 }

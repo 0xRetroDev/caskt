@@ -6,47 +6,42 @@ import { GcError, sleep } from "../core/pacing.js";
 const CS2_APPID = 730;
 const STORAGE_UNIT_DEFINDEX = 1201;
 
-// Keychain (charm) attributes cluster in this def-index range. The id is a small
-// uint32 (charm def indexes are ~1..80); the seed is large and offsets are
-// floats, so a small value in the group is the id and the largest is the seed.
-const KEYCHAIN_LO = 299;
-const KEYCHAIN_HI = 305;
+/**
+ * GC attribute def indexes we read ourselves, straight from Valve's items_game
+ * schema. The globaloffensive client decodes stickers (113+), paint (6/7/8) and
+ * trade protection (75), but leaves the keychain slot and music kits raw.
+ *
+ * The keychain slot is the interesting one: CS2 reuses that single slot for
+ * three unrelated item types, distinguished only by which attribute carries the
+ * id. A Sticker Slab is not its own item def at all — it is a keychain holding a
+ * sticker kit id in attribute 321.
+ */
+const ATTR = {
+  /** "music id" — the kit id on a musickit item (def 1314). */
+  MUSIC_ID: 166,
+  /** "keychain slot 0 id" — a keychain (charm) id. */
+  KEYCHAIN_ID: 299,
+  /** "keychain slot 0 seed" — the charm's pattern seed. Note: outside 299..305. */
+  KEYCHAIN_SEED: 306,
+  /** "keychain slot 0 highlight" — a Souvenir Highlight charm's highlight id. */
+  KEYCHAIN_HIGHLIGHT: 314,
+  /** "keychain slot 0 sticker" — the sticker kit id sealed in a Sticker Slab. */
+  KEYCHAIN_STICKER: 321,
+} as const;
 
-// One-shot diagnostic: dump the value at each attribute in the keychain range so
-// we can see which one holds the small keychain def index (1..~80) vs the seed
-// and offsets, then stop logging to avoid noise.
-let keychainProbesLeft = 5;
-function probeKeychainAttrs(attrs: Array<{ def_index?: number; value_bytes?: unknown }>): void {
-  if (keychainProbesLeft <= 0) return;
-  const inRange = attrs.filter((a) => typeof a.def_index === "number" && a.def_index >= 296 && a.def_index <= 322);
-  if (inRange.length === 0) return;
-  keychainProbesLeft--;
-  const parts = inRange.map((a) => {
-    const buf = a.value_bytes as Buffer | undefined;
-    let v = "?";
-    if (buf && buf.length >= 4) v = `u32=${buf.readUInt32LE(0)} f32=${buf.readFloatLE(0).toFixed(3)}`;
-    else if (buf) v = `len=${buf.length}`;
-    return `[${a.def_index}: ${v}]`;
-  });
-  console.log(`[cs2-inventory] keychain probe values: ${parts.join(" ")}`);
+type RawAttr = { def_index?: number; value_bytes?: unknown };
+
+/** Read one attribute's raw 4 bytes, or undefined when the item lacks it. */
+function attrBytes(attrs: RawAttr[], defIndex: number): Buffer | undefined {
+  const hit = attrs.find((a) => a.def_index === defIndex);
+  const buf = hit?.value_bytes as Buffer | undefined;
+  return buf && buf.length >= 4 ? buf : undefined;
 }
 
-// One-shot diagnostic: dump the equipped_state pairs and flags for items that
-// carry either, so we can confirm the real new_class values CS2 uses for the two
-// teams (and spot how loadout-shuffle "favorites" are marked), then stop logging.
-let equipProbesLeft = 10;
-function probeEquipped(r: Record<string, unknown>): void {
-  if (equipProbesLeft <= 0) return;
-  const eq = r["equipped_state"];
-  const flags = Number(r["flags"] ?? 0);
-  const hasEq = Array.isArray(eq) && eq.length > 0;
-  if (!hasEq && !flags) return;
-  equipProbesLeft--;
-  const pairs = hasEq
-    ? (eq as Array<Record<string, unknown>>).map((e) => `class=${e["new_class"]} slot=${e["new_slot"]}`).join(", ")
-    : "-";
-  console.log(`[cs2-inventory] equip probe: flags=${flags} in_use=${r["in_use"]} equipped_state=[${pairs}]`);
+function attrU32(attrs: RawAttr[], defIndex: number): number | undefined {
+  return attrBytes(attrs, defIndex)?.readUInt32LE(0);
 }
+
 const GC_OP_TIMEOUT_MS = 15000;
 const GC_CONNECT_TIMEOUT_MS = 30000;
 const ONLINE = 1; // EPersonaState.Online
@@ -76,29 +71,28 @@ function mapGcItem(raw: GcItem, location: string, now: number): Item {
       })
     : [];
 
-  // Keychains (charms): the GC lib (3.3.0) parses stickers but not keychains, so
-  // we read them from the raw attribute list ourselves. The charm id is a small
-  // uint32 somewhere in the 299..305 group (seeds are large, offsets are floats),
-  // so we treat each small value as an id candidate and let resolveNames drop any
-  // that doesn't map to a real charm. The largest value in the group is the seed.
-  const attrs = (r["attribute"] as Array<{ def_index?: number; value_bytes?: unknown }> | undefined) ?? [];
-  probeKeychainAttrs(attrs);
+  // The keychain slot. globaloffensive (3.3.0) parses stickers but not keychains,
+  // so we read the slot ourselves. Exactly one of these three attributes is set,
+  // and which one it is tells us what the attachment actually is — a charm, a
+  // Sticker Slab (a sticker sealed in a display case), or a Souvenir Highlight.
+  // The item may be the attachment itself (a loose charm/slab, def 1355) or a
+  // weapon wearing it; both carry the attributes the same way.
+  const attrs = (r["attribute"] as RawAttr[] | undefined) ?? [];
   const charms: Charm[] = [];
-  const seenCharmIds = new Set<number>();
-  let charmSeed = 0;
-  for (const a of attrs) {
-    const di = a.def_index;
-    if (typeof di !== "number" || di < KEYCHAIN_LO || di > KEYCHAIN_HI) continue;
-    const buf = a.value_bytes as Buffer | undefined;
-    if (!buf || buf.length < 4) continue;
-    const u = buf.readUInt32LE(0);
-    if (u > charmSeed) charmSeed = u;
-    if (u >= 1 && u <= 2000 && !seenCharmIds.has(u)) {
-      seenCharmIds.add(u);
-      charms.push({ slot: 0, charmId: u, name: null });
-    }
+  const slabSticker = attrU32(attrs, ATTR.KEYCHAIN_STICKER);
+  const highlightId = attrU32(attrs, ATTR.KEYCHAIN_HIGHLIGHT);
+  const keychainId = attrU32(attrs, ATTR.KEYCHAIN_ID);
+  if (slabSticker) {
+    charms.push({ slot: 0, charmId: 0, kind: "slab", stickerId: slabSticker, name: null });
+  } else if (highlightId) {
+    charms.push({ slot: 0, charmId: 0, kind: "highlight", highlightId, name: null });
+  } else if (keychainId) {
+    charms.push({ slot: 0, charmId: keychainId, kind: "charm", name: null });
   }
-  for (const c of charms) if (charmSeed && charmSeed !== c.charmId) c.pattern = charmSeed;
+  // The pattern seed lives at 306, past the offsets (300..302, which are floats
+  // and read as huge garbage if you take their bytes as an integer).
+  const charmSeed = attrU32(attrs, ATTR.KEYCHAIN_SEED);
+  if (charmSeed) for (const c of charms) c.pattern = charmSeed;
 
   const quality = Number(r["quality"] ?? 0);
   const item: Item = {
@@ -119,20 +113,28 @@ function mapGcItem(raw: GcItem, location: string, now: number): Item {
   };
 
   if (r["custom_name"] !== undefined) item.customName = String(r["custom_name"]);
-  // Loadout: equipped_state lists the teams an item is equipped on. The GC class
-  // is the team number: 2 = T, 3 = CT. A loadout-shuffle rotation marks every
-  // skin in the slot, so several items can each be equipped at once; that is
-  // handled naturally since we read each item's own equipped_state.
-  probeEquipped(r as Record<string, unknown>);
+  const musicId = attrU32(attrs, ATTR.MUSIC_ID);
+  if (musicId) item.musicId = musicId;
+
+  // Loadout: equipped_state is a list of (new_class, new_slot) pairs. The class is
+  // the team number — 2 = T, 3 = CT — and the slot is the loadout position the
+  // item fills for that team. We keep the slot, not just the team, because a slot
+  // holding more than one item IS a shuffle: that is the only signal CS2 gives us.
+  // Which items share a slot can only be known across the whole inventory, so the
+  // shuffle flag itself is worked out after the crawl (see markShuffles).
   const equipState = r["equipped_state"];
   if (Array.isArray(equipState) && equipState.length > 0) {
     const teams = new Set<"CT" | "T">();
+    const slots: { team: "CT" | "T"; slot: number }[] = [];
     for (const e of equipState as Array<Record<string, unknown>>) {
       const cls = Number(e["new_class"]);
-      if (cls === 3) teams.add("CT");
-      else if (cls === 2) teams.add("T");
+      const team = cls === 3 ? "CT" : cls === 2 ? "T" : null;
+      if (!team) continue;
+      teams.add(team);
+      slots.push({ team, slot: Number(e["new_slot"] ?? 0) });
     }
     if (teams.size > 0) item.equipped = [...teams];
+    if (slots.length > 0) item.equippedSlots = slots;
   }
   // Trade protection: globaloffensive parses attribute 75 into a Date on
   // `tradable_after`. If it is in the future, the item is locked.
@@ -174,6 +176,29 @@ export function isPhantom(raw: GcItem): boolean {
   if (token === undefined || token === null) return true;
   const u = Number(token) >>> 0; // unsigned 32-bit
   return u === 0 || u >= 0x80000000;
+}
+
+/**
+ * Flag every item that shares a loadout slot with another item. CS2's loadout
+ * shuffle works by putting several skins in one slot and rotating between them
+ * each match, and the GC does not label that anywhere — each item simply reports
+ * itself as equipped on the same (team, slot). So a slot with two or more items
+ * in it is a shuffle, and every item in that slot is part of it. A slot with one
+ * item is a plain equip. Mutates the items in place.
+ */
+export function markShuffles(items: Item[]): void {
+  const bySlot = new Map<string, Item[]>();
+  for (const item of items) {
+    for (const s of item.equippedSlots ?? []) {
+      const key = `${s.team}:${s.slot}`;
+      const group = bySlot.get(key);
+      if (group) group.push(item);
+      else bySlot.set(key, [item]);
+    }
+  }
+  for (const group of bySlot.values()) {
+    if (group.length > 1) for (const item of group) item.shuffled = true;
+  }
 }
 
 export interface CrawlResult {
@@ -406,6 +431,7 @@ export class GcSession {
       });
     }
 
+    markShuffles(items);
     return { items, units };
   }
 

@@ -38,6 +38,15 @@ export type ListingMap = Map<string, ListingDTO>;
 
 function categoryOf(item: Item, categories: CategoryMap): string {
   const c = categories[String(item.defindex)];
+  // Charms, Sticker Slabs and Souvenir Highlights all share ONE item def, so the
+  // schema can only say "this def is a keychain". Which of the three it actually
+  // is comes from the attribute that carried its id.
+  if (c === "Charm") {
+    const kind = item.charms[0]?.kind;
+    if (kind === "slab") return "Sticker Slab";
+    if (kind === "highlight") return "Highlight";
+    return "Charm";
+  }
   if (c) return c;
   // Standalone sticker/charm items carry a generic def_index; classify by attribute.
   if (item.stickers.length === 1 && item.charms.length === 0) return "Sticker";
@@ -54,9 +63,10 @@ export function serializeItem(
   now = Date.now(),
 ): ItemDTO {
   const stickers = item.stickers.map((s) => ({ ...s, image: images.sticker(s.stickerId) }));
-  const charms = item.charms.map((c) => ({ ...c, image: images.charm(c.charmId) }));
+  const charms = item.charms.map((c) => ({ ...c, image: images.charm(c) }));
 
-  // Standalone sticker/charm items have no weapon image; use the attribute's.
+  // A loose attachment — a sticker, patch, graffiti, charm, slab or highlight —
+  // has no weapon image of its own, so it shows the picture of the thing itself.
   let image = images.item(item);
   if (!image && stickers.length === 1 && item.charms.length === 0) image = stickers[0]!.image;
   if (!image && charms.length === 1 && item.stickers.length === 0) image = charms[0]!.image;

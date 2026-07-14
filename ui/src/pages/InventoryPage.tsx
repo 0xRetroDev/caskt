@@ -12,9 +12,37 @@ import { useCurrency } from "../lib/currency";
 import { wear, weaponType, type Wear } from "../lib/format";
 import { itemTags, matchesTournament, sortEvents } from "../lib/tournament";
 
-type Sort = "price" | "priceAsc" | "floatAsc" | "floatDesc" | "name" | "nameDesc";
+type Sort = "newest" | "oldest" | "price" | "priceAsc" | "floatAsc" | "floatDesc" | "name" | "nameDesc";
+
+/** Anything new counts as new for a week. Long enough to still be there after a
+ *  weekend away, short enough that the view does not silt up. */
+const NEW_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+const isNew = (i: Item, now: number) => i.firstSeenAt !== undefined && now - i.firstSeenAt < NEW_WINDOW_MS;
+
+/**
+ * Newest first. Items Caskt has an arrival date for lead, most recent first.
+ * Everything else was already in the inventory before Caskt ever looked, so it
+ * has no arrival date and sorts to the back — ordered among itself by asset id,
+ * which the GC hands out in ascending order, making it a fair proxy for age.
+ */
+function byNewest(a: Item, b: Item): number {
+  if (a.firstSeenAt !== b.firstSeenAt) {
+    if (a.firstSeenAt === undefined) return 1;
+    if (b.firstSeenAt === undefined) return -1;
+    return b.firstSeenAt - a.firstSeenAt;
+  }
+  return compareAssetId(b.assetId, a.assetId);
+}
+
+/** Asset ids are 64-bit and overflow Number, so compare them as digit strings. */
+function compareAssetId(a: string, b: string): number {
+  return a.length === b.length ? a.localeCompare(b) : a.length - b.length;
+}
 
 const SORTERS: Record<Sort, (a: Item, b: Item) => number> = {
+  newest: byNewest,
+  oldest: (a, b) => -byNewest(a, b),
   price: (a, b) => (b.price ?? 0) - (a.price ?? 0),
   priceAsc: (a, b) => (a.price ?? 0) - (b.price ?? 0),
   floatAsc: (a, b) => a.float - b.float,
@@ -30,15 +58,19 @@ const CATEGORY_LABEL: Record<string, string> = {
   Knife: "Knives",
   Gloves: "Gloves",
   Sticker: "Stickers",
+  "Sticker Slab": "Sticker Slabs",
   Patch: "Patches",
   Graffiti: "Graffiti",
   Charm: "Charms",
+  Highlight: "Highlights",
   Case: "Cases",
   Capsule: "Capsules",
   Container: "Containers",
+  Key: "Keys",
   "Music Kit": "Music Kits",
   Agent: "Agents",
   Collectible: "Collectibles",
+  Tool: "Tools",
   Other: "Other",
 };
 const CATEGORY_ORDER = Object.keys(CATEGORY_LABEL);
@@ -61,6 +93,8 @@ export function InventoryPage() {
   const [souvenir, setSouvenir] = useState(false);
   const [hasStickers, setHasStickers] = useState(false);
   const [hasCharms, setHasCharms] = useState(false);
+  const [onlyNew, setOnlyNew] = useState(false);
+  const [onlyEquipped, setOnlyEquipped] = useState(false);
   const [status, setStatus] = useState<"any" | "tradable" | "locked" | "listed">("any");
   const [weaponSel, setWeaponSel] = useState<string>("any");
   const [sort, setSort] = useState<Sort>("price");
@@ -132,6 +166,12 @@ export function InventoryPage() {
     return [...set].sort((a, b) => a.localeCompare(b));
   }, [scoped]);
 
+  // Only offer the "New" chip once there is something to find: on a fresh install
+  // nothing has an arrival date yet, so the filter would only ever return zero.
+  const now = Date.now();
+  const newCount = useMemo(() => scoped.filter((i) => isNew(i, now)).length, [scoped, now]);
+  const equippedCount = useMemo(() => scoped.filter((i) => i.equipped?.length).length, [scoped]);
+
   const filtered = useMemo(() => {
     const q = text.trim().toLowerCase();
     const out = scoped.filter((i) => {
@@ -141,6 +181,8 @@ export function InventoryPage() {
       // "Has stickers/charms" means applied to a weapon, not a loose sticker/charm item.
       if (hasStickers && !(i.stickers.length > 0 && i.category !== "Sticker")) return false;
       if (hasCharms && !(i.charms.length > 0 && i.category !== "Charm")) return false;
+      if (onlyNew && !isNew(i, now)) return false;
+      if (onlyEquipped && !i.equipped?.length) return false;
       if (status === "locked" && !i.locked) return false;
       if (status === "tradable" && i.locked) return false;
       if (status === "listed" && !i.listing) return false;
@@ -157,7 +199,7 @@ export function InventoryPage() {
     });
     out.sort(SORTERS[sort]);
     return out;
-  }, [scoped, category, stattrak, souvenir, hasStickers, hasCharms, status, wearTier, weaponSel, collectionSel, eventSel, teamSel, text, sort]);
+  }, [scoped, category, stattrak, souvenir, hasStickers, hasCharms, onlyNew, onlyEquipped, now, status, wearTier, weaponSel, collectionSel, eventSel, teamSel, text, sort]);
 
   function toggle(assetId: string, shiftKey?: boolean, ctrlKey?: boolean) {
     const idx = filtered.findIndex((i) => i.assetId === assetId);
@@ -315,6 +357,8 @@ export function InventoryPage() {
         >
           <option value="price">Price, high to low</option>
           <option value="priceAsc">Price, low to high</option>
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
           <option value="floatAsc">Float, low to high</option>
           <option value="floatDesc">Float, high to low</option>
           <option value="name">Name, A to Z</option>
@@ -381,6 +425,22 @@ export function InventoryPage() {
           </Chip>
         ))}
         <span className="mx-1 h-4 w-px bg-line" />
+        {newCount > 0 && (
+          <Chip
+            active={onlyNew}
+            onClick={() => {
+              const next = !onlyNew;
+              setOnlyNew(next);
+              // Turning the filter on and leaving the grid sorted by price buries
+              // the newest arrivals; showing them newest-first is the whole point.
+              if (next) setSort("newest");
+            }}
+            accent
+            title="Items that first appeared in your inventory in the last 7 days"
+          >
+            New ({newCount})
+          </Chip>
+        )}
         <Chip active={stattrak} onClick={() => setStattrak((v) => !v)} accent>
           StatTrak
         </Chip>
@@ -393,6 +453,16 @@ export function InventoryPage() {
         <Chip active={hasCharms} onClick={() => setHasCharms((v) => !v)} accent>
           Has charm
         </Chip>
+        {equippedCount > 0 && (
+          <Chip
+            active={onlyEquipped}
+            onClick={() => setOnlyEquipped((v) => !v)}
+            accent
+            title="Items equipped in your CT or T loadout"
+          >
+            Equipped
+          </Chip>
+        )}
       </div>
 
       <div className="num mb-2 flex items-center gap-3 text-xs text-fg-faint">
@@ -499,15 +569,18 @@ function Chip({
   onClick,
   children,
   accent,
+  title,
 }: {
   active: boolean;
   onClick: () => void;
   children: React.ReactNode;
   accent?: boolean;
+  title?: string;
 }) {
   return (
     <button
       onClick={onClick}
+      title={title}
       className={`rounded-full border px-3 py-1 text-[13px] transition-colors ${
         active
           ? accent

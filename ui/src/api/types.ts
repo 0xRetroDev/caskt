@@ -12,10 +12,18 @@ export interface Sticker {
   image?: string | null;
 }
 
+/** CS2 reuses one keychain slot for three item types; `kind` says which. */
+export type CharmKind = "charm" | "slab" | "highlight";
+
 export interface Charm {
   slot: number;
   charmId: number;
   name: string | null;
+  kind?: CharmKind;
+  /** Sticker sealed inside a Sticker Slab (kind "slab"). */
+  stickerId?: number;
+  /** Highlight id for a Souvenir Highlight charm (kind "highlight"). */
+  highlightId?: number;
   pattern?: number;
   price?: number | null;
   image?: string | null;
@@ -53,14 +61,26 @@ export interface Item {
   customName?: string;
   stickers: Sticker[];
   charms: Charm[];
+  /** Music kit id, on music kit items. */
+  musicId?: number;
   price?: number | null;
   syncedAt: number;
+  /**
+   * When Caskt first indexed this item. Set once and never rewritten, so it is a
+   * true "arrived on" date — unlike syncedAt, which moves on every sync. Absent
+   * for items that were already in the inventory on the very first sync.
+   */
+  firstSeenAt?: number;
   // Server-added presentation fields:
   image: string | null;
   locked: boolean;
   category: string;
   collection: string | null;
   equipped?: ("CT" | "T")[];
+  /** The loadout slot this item fills, per team it is equipped on. */
+  equippedSlots?: { team: "CT" | "T"; slot: number }[];
+  /** True when this item shares a loadout slot with another — i.e. it is in a shuffle. */
+  shuffled?: boolean;
   listing?: CsfloatListingView | null;
 }
 

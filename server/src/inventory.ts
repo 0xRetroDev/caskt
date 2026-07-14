@@ -1,4 +1,5 @@
 import type {
+  Charm,
   Filter,
   InventoryOptions,
   Item,
@@ -17,6 +18,7 @@ import type {
 import { Store } from "./store/db.js";
 import { GcSession } from "./gc/session.js";
 import { NullResolver } from "./gc/schema.js";
+import { decorateName } from "./core/naming.js";
 import { matchItem } from "./core/filter.js";
 import { valueItems } from "./core/value.js";
 import {
@@ -415,7 +417,17 @@ export class Inventory {
     }
   }
 
+  /** Name whatever sits in an item's keychain slot: a charm, a Sticker Slab, or a
+   *  Souvenir Highlight. Each is keyed by a different id in a different id space. */
+  private charmName(c: Charm): string | null {
+    if (c.kind === "slab") return c.stickerId ? this.resolver.slabName(c.stickerId) : null;
+    if (c.kind === "highlight") return c.highlightId ? this.resolver.highlightName(c.highlightId) : null;
+    return c.charmId ? this.resolver.charmName(c.charmId) : null;
+  }
+
   private resolveNames(items: Item[]): void {
+    const unnamed = new Map<number, number>();
+
     for (const item of items) {
       item.name = this.resolver.itemName({
         defindex: item.defindex,
@@ -427,23 +439,37 @@ export class Inventory {
       });
       item.collection = this.resolver.collection(item.defindex, item.paintIndex) ?? undefined;
       for (const s of item.stickers) s.name = this.resolver.stickerName(s.stickerId);
-      for (const c of item.charms) c.name = this.resolver.charmName(c.charmId);
-      // Charms come from best-effort id candidates; keep only those that resolve
-      // to a real keychain, and cap at one (an item carries a single charm).
-      if (item.charms.length) {
-        item.charms = item.charms.filter((c) => c.name).slice(0, 1);
-      }
+      for (const c of item.charms) c.name = this.charmName(c);
 
-      // A standalone sticker or charm item (not applied to a weapon) is reported
-      // by the GC as a generic item carrying one attribute; its def_index is not
-      // a weapon, so it resolves to no name. Name it after the sticker/charm.
+      // Several CS2 item types share one item definition and carry their real
+      // identity in an attribute instead, so def_index alone cannot name them:
+      // a music kit (attr 166), and anything in the keychain slot — a charm, a
+      // Sticker Slab, a Souvenir Highlight. Loose stickers, patches and graffiti
+      // work the same way, arriving as a lone sticker-kit id in attribute 113.
+      // In every case the attachment IS the item, so it supplies the name.
+      if (!item.name && item.musicId) {
+        const kit = this.resolver.musicKitName(item.musicId);
+        if (kit) item.name = decorateName(kit, { stattrak: item.stattrak });
+      }
       if (!item.name) {
-        if (item.stickers.length === 1 && item.charms.length === 0 && item.stickers[0]!.name) {
-          item.name = item.stickers[0]!.name;
-        } else if (item.charms.length === 1 && item.stickers.length === 0 && item.charms[0]!.name) {
+        if (item.charms.length === 1 && item.charms[0]!.name) {
           item.name = item.charms[0]!.name;
+        } else if (item.stickers.length === 1 && item.charms.length === 0 && item.stickers[0]!.name) {
+          item.name = item.stickers[0]!.name;
         }
       }
+
+      if (!item.name) unnamed.set(item.defindex, (unnamed.get(item.defindex) ?? 0) + 1);
+    }
+
+    // Anything still unnamed is an item type we do not model yet. Report it by
+    // def_index so a new Valve item type can be identified without a live debug
+    // session, rather than quietly showing up as a blank card.
+    if (unnamed.size > 0) {
+      const worst = [...unnamed].sort((a, b) => b[1] - a[1]).slice(0, 8);
+      const total = [...unnamed.values()].reduce((a, b) => a + b, 0);
+      const detail = worst.map(([def, n]) => `def_index ${def} x${n}`).join(", ");
+      console.log(`[cs2-inventory] ${total} unnamed item${total === 1 ? "" : "s"} (${detail})`);
     }
   }
 }

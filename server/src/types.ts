@@ -14,10 +14,26 @@ export interface Sticker {
   price?: number | null;
 }
 
+/**
+ * What occupies an item's keychain slot. CS2 reuses that one slot for three
+ * different things, told apart by which GC attribute carries the id:
+ *   - "charm"     attr 299, a keychain id      -> "Charm | Lil' Ava"
+ *   - "slab"      attr 321, a sticker kit id   -> "Sticker Slab | Shooter"
+ *   - "highlight" attr 314, a highlight id     -> "Souvenir Charm | ... Highlight"
+ */
+export type CharmKind = "charm" | "slab" | "highlight";
+
 export interface Charm {
   slot: number;
+  /** Keychain id (kind "charm"). 0 for slabs and highlights, which key off their own id. */
   charmId: number;
   name: string | null;
+  /** Which of the three keychain-slot item types this is. Defaults to "charm". */
+  kind?: CharmKind;
+  /** Sticker kit id sealed inside a Sticker Slab (kind "slab"). */
+  stickerId?: number;
+  /** Highlight id for a Souvenir Highlight charm (kind "highlight"). */
+  highlightId?: number;
   pattern?: number;
   price?: number | null;
 }
@@ -44,12 +60,29 @@ export interface Item {
   customName?: string;
   stickers: Sticker[];
   charms: Charm[];
+  /** Music kit id (GC attribute 166), on musickit items. */
+  musicId?: number;
   /** Skin collection (item set) name, when known. Weapon skins only. */
   collection?: string;
   /** Teams this item is equipped on in the active loadout, e.g. ["CT","T"]. */
   equipped?: ("CT" | "T")[];
+  /** The loadout slot this item fills on each team it is equipped on. */
+  equippedSlots?: { team: "CT" | "T"; slot: number }[];
+  /**
+   * True when another equipped item shares one of this item's loadout slots.
+   * CS2 lets several skins sit in one slot and rotates between them per match,
+   * so a shared slot is exactly what "this item is in a shuffle" means.
+   */
+  shuffled?: boolean;
   /** Unit price from the price provider. Null when unknown/unpriced. */
   price?: number | null;
+  /**
+   * When Caskt first saw this item, in unix ms. Set once, on the sync that first
+   * indexes it, and never rewritten — unlike syncedAt, which moves every sync.
+   * Undefined for items that were already there on the very first sync (their
+   * true acquisition date is unknowable) and for rows predating this column.
+   */
+  firstSeenAt?: number;
   /** When this row was last refreshed from the GC. */
   syncedAt: number;
 }
@@ -99,6 +132,12 @@ export interface Filter {
   hasNameTag?: boolean;
   /** Substring match against the custom name tag. */
   nameTag?: string;
+  /** Only items Caskt first saw at or after this unix-ms timestamp. */
+  newerThan?: number;
+  /** true = only items equipped in the loadout; false = only unequipped. */
+  equipped?: boolean;
+  /** true = only items sharing a loadout slot with another item (a shuffle). */
+  shuffled?: boolean;
 }
 
 /** A single organize instruction: items matching `when` should end up in `to`. */
@@ -188,8 +227,16 @@ export interface NameResolver {
     stattrak: boolean;
     souvenir: boolean;
   }): string | null;
+  /** Sticker kit id -> name. Also covers patches and graffiti, which Valve keys
+   *  out of the same sticker-kit id space. */
   stickerName(stickerId: number): string | null;
   charmName(charmId: number): string | null;
+  /** Sticker kit id sealed in a slab -> "Sticker Slab | <sticker>". */
+  slabName(stickerId: number): string | null;
+  /** Highlight id -> "Souvenir Charm | <event> Highlight | <play>". */
+  highlightName(highlightId: number): string | null;
+  /** Music kit id (GC attribute 166) -> music kit name. */
+  musicKitName(musicId: number): string | null;
   /** Skin collection (item set) name for a weapon skin, or null. */
   collection(defindex: number, paintIndex: number): string | null;
 }
