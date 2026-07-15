@@ -271,7 +271,7 @@ function Movers({ windowDays }: { windowDays: number }) {
         <p className="py-6 text-center text-[13px] text-fg-faint">
           {movers.isLoading
             ? "Loading."
-            : "Gainers and losers appear once there's enough price history to compare. A snapshot is taken on each sync, so this fills in over the coming days."}
+            : "Gainers and losers appear once there's enough price history to compare. A snapshot is taken on each sync, so this fills in after a couple of syncs."}
         </p>
       ) : (
         <div className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">

@@ -198,11 +198,11 @@ export class Inventory {
       unpricedCount: v.unpricedCount,
     };
     this.store.appendSnapshot(snap);
-    // One price per distinct skin name, for over-time gainers/losers.
+    // One price per distinct skin name, timestamped, for over-time gainers/losers.
     const byName = new Map<string, number>();
     for (const it of items) if (it.name && it.price != null && it.price > 0) byName.set(it.name, it.price);
-    this.store.recordPricePoints(
-      Math.floor(snap.takenAt / 86_400_000),
+    this.store.recordItemPrices(
+      snap.takenAt,
       [...byName].map(([name, price]) => ({ name, price })),
     );
     return snap;
@@ -216,11 +216,13 @@ export class Inventory {
     losers: Mover[];
     comparedToDay: number | null;
   } {
-    const today = Math.floor(Date.now() / 86_400_000);
-    // Bound the baseline to days strictly before today: today's point is written
-    // by the current sync, so comparing against it yields zero movement. Without
-    // this, a missing yesterday makes the 24h window collapse onto today.
-    const past = this.store.pricePointsNear(today - days, today);
+    // Compare each skin's current price to its price nearest the window's start.
+    // Points are timestamped per sync, so a 24h window resolves against an
+    // earlier point from today when that's all the history there is — the same
+    // way the value-trend badge fills in intraday, rather than needing a whole
+    // prior calendar day to have elapsed.
+    const cutoff = Date.now() - days * 86_400_000;
+    const past = this.store.itemPricesBaseline(cutoff);
     const current = new Map<string, { price: number; qty: number }>();
     for (const it of this.store.allItems()) {
       if (!it.name || it.price == null || it.price <= 0) continue;
@@ -244,7 +246,7 @@ export class Inventory {
         .filter((m) => m.impact < 0)
         .sort((a, b) => a.impact - b.impact)
         .slice(0, top),
-      comparedToDay: past.day,
+      comparedToDay: past.at != null ? Math.floor(past.at / 86_400_000) : null,
     };
   }
 

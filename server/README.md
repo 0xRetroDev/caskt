@@ -142,7 +142,7 @@ Images are a presentation concern, so they live in the server, not the core. `im
 
 Graphs render in the UI, not here. The server's job is to feed them: `/value/history` is a ready time series for a portfolio chart, and `/value`'s `byLocation` drives a per-unit breakdown. Use any charting lib in the UI repo (recharts, chart.js) against those.
 
-`snapshotValue()` also records one price per distinct skin name into a `price_points` table (keyed by day, last write wins, pruned to ~60 days). `/value/movers?days=N` reads it: for each owned skin it compares the current price to the price at the recorded day nearest `now - N`, and returns the top gainers and losers ranked by *impact* (per-unit change times quantity held), along with `comparedToDay`. There is no backfill, so the history accumulates from first run; with too little history the result is simply empty.
+`snapshotValue()` also records the current price of each distinct skin name into an `item_prices` table, timestamped per sync and deduped (a point is written only when a skin's price changes, pruned to ~60 days but always keeping each name's most recent point). `/value/movers?days=N` reads it: for each owned skin it compares the current price to that skin's price nearest `now - N` — its latest recorded point at or before the cutoff, or its earliest point when history is younger than the window (the same way the value-trend badge fills in intraday). It returns the top gainers and losers ranked by *impact* (per-unit change times quantity held), along with `comparedToDay`. Older databases backfill `item_prices` from the legacy daily `price_points` buckets on first run; with fewer than two snapshots the result is simply empty.
 
 ## Scheduler
 

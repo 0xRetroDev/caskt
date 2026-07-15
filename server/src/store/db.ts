@@ -67,6 +67,17 @@ CREATE TABLE IF NOT EXISTS price_points (
   PRIMARY KEY (day, name)
 );
 
+-- Per-skin price history at snapshot (sync) resolution, for intraday gainers/
+-- losers. Deduped on write: a new row is stored only when a skin's price
+-- changes, so a name's price is constant between its recorded points. Supersedes
+-- the daily price_points buckets, which are backfilled into this on first run.
+CREATE TABLE IF NOT EXISTS item_prices (
+  takenAt INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  price REAL NOT NULL,
+  PRIMARY KEY (name, takenAt)
+);
+
 CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -231,6 +242,17 @@ export class Store {
     if (!sched.includes("listingJson")) this.db.exec("ALTER TABLE schedules ADD COLUMN listingJson TEXT");
     const hist = (this.db.prepare("PRAGMA table_info(job_history)").all() as { name: string }[]).map((c) => c.name);
     if (!hist.includes("listed")) this.db.exec("ALTER TABLE job_history ADD COLUMN listed INTEGER");
+
+    // Seed the timestamped item_prices series from the old daily price_points
+    // buckets (once), so movers keep the 7/30d history they already had. Each
+    // day bucket becomes a point at that UTC day's midnight.
+    const seeded = (this.db.prepare("SELECT COUNT(*) AS n FROM item_prices").get() as { n: number }).n > 0;
+    const hasDaily = (this.db.prepare("SELECT COUNT(*) AS n FROM price_points").get() as { n: number }).n > 0;
+    if (!seeded && hasDaily) {
+      this.db.exec(
+        "INSERT OR IGNORE INTO item_prices (takenAt, name, price) SELECT day * 86400000, name, price FROM price_points",
+      );
+    }
   }
 
   close(): void {
@@ -398,36 +420,54 @@ export class Store {
       .all(limit) as ValueSnapshot[];
   }
 
-  /** Record one price per distinct skin name for a given day (last write wins),
-   *  then drop points older than keepDays so the table stays bounded. */
-  recordPricePoints(day: number, points: { name: string; price: number }[], keepDays = 60): void {
-    const stmt = this.db.prepare("INSERT OR REPLACE INTO price_points (day, name, price) VALUES (?, ?, ?)");
+  /** Record the current price of each distinct skin name at `takenAt`, deduped:
+   *  a point is written only when a name's price differs from its last recorded
+   *  one, so the table holds change points rather than a row per sync. Prunes
+   *  points older than keepDays, but always keeps each name's most recent point
+   *  so a long-unchanged price survives as a baseline. */
+  recordItemPrices(takenAt: number, points: { name: string; price: number }[], keepDays = 60): void {
+    const last = this.db.prepare("SELECT price FROM item_prices WHERE name = ? ORDER BY takenAt DESC LIMIT 1");
+    const ins = this.db.prepare("INSERT OR REPLACE INTO item_prices (takenAt, name, price) VALUES (?, ?, ?)");
     const tx = this.db.transaction((rows: { name: string; price: number }[]) => {
-      for (const p of rows) stmt.run(day, p.name, p.price);
+      for (const p of rows) {
+        const prev = last.get(p.name) as { price: number } | undefined;
+        if (prev && prev.price === p.price) continue;
+        ins.run(takenAt, p.name, p.price);
+      }
     });
     tx(points);
-    this.db.prepare("DELETE FROM price_points WHERE day < ?").run(day - keepDays);
+    this.db
+      .prepare(
+        "DELETE FROM item_prices WHERE takenAt < ? AND takenAt <> (SELECT MAX(takenAt) FROM item_prices ip WHERE ip.name = item_prices.name)",
+      )
+      .run(takenAt - keepDays * 86_400_000);
   }
 
-  /** Prices from the recorded day nearest to targetDay (for over-time comparison).
-   *  Returns the actual day used so callers can show the comparison date.
-   *  `beforeDay` bounds the search to strictly-earlier days so a past-window
-   *  comparison never lands on today's own just-recorded prices (which would
-   *  make every delta zero — the 24h window is most sensitive to this). */
-  pricePointsNear(targetDay: number, beforeDay?: number): { day: number | null; prices: Record<string, number> } {
-    const row = (
-      beforeDay === undefined
-        ? this.db.prepare("SELECT day FROM price_points ORDER BY ABS(day - ?) LIMIT 1").get(targetDay)
-        : this.db.prepare("SELECT day FROM price_points WHERE day < ? ORDER BY ABS(day - ?) LIMIT 1").get(beforeDay, targetDay)
-    ) as { day: number } | undefined;
-    if (!row) return { day: null, prices: {} };
-    const rows = this.db.prepare("SELECT name, price FROM price_points WHERE day = ?").all(row.day) as {
-      name: string;
-      price: number;
-    }[];
+  /** Baseline price for each skin at `cutoff`: its latest recorded price at or
+   *  before the cutoff, or its earliest recorded price if it has none that old
+   *  (mirrors the value-trend badge, which compares to the oldest point in range
+   *  when history is younger than the window). `at` is a representative baseline
+   *  time — the newest point at/before the cutoff — for the UI's "vs <date>". */
+  itemPricesBaseline(cutoff: number): { at: number | null; prices: Record<string, number> } {
     const prices: Record<string, number> = {};
-    for (const r of rows) prices[r.name] = r.price;
-    return { day: row.day, prices };
+    // Earliest point per name first, then overlay the latest at/before cutoff so
+    // that overlay wins where it exists.
+    const earliest = this.db
+      .prepare(
+        "SELECT ip.name AS name, ip.price AS price FROM item_prices ip WHERE ip.takenAt = (SELECT MIN(takenAt) FROM item_prices WHERE name = ip.name)",
+      )
+      .all() as { name: string; price: number }[];
+    for (const r of earliest) prices[r.name] = r.price;
+    const atOrBefore = this.db
+      .prepare(
+        "SELECT ip.name AS name, ip.price AS price FROM item_prices ip WHERE ip.takenAt = (SELECT MAX(takenAt) FROM item_prices WHERE name = ip.name AND takenAt <= ?)",
+      )
+      .all(cutoff) as { name: string; price: number }[];
+    for (const r of atOrBefore) prices[r.name] = r.price;
+    const at = (this.db.prepare("SELECT MAX(takenAt) AS at FROM item_prices WHERE takenAt <= ?").get(cutoff) as {
+      at: number | null;
+    }).at;
+    return { at, prices };
   }
 
   // --- meta --------------------------------------------------------------

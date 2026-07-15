@@ -191,9 +191,9 @@ export function HelpPage() {
             large move on a single item. It counts everything you own, including items in storage.
           </P>
           <P>
-            Movers builds up from a per-skin price history that Caskt records on each sync. There is no
-            backfill, so for the first several days after updating it will show a short note while history
-            accumulates, then fill in. The longer it runs, the better the 30-day view gets.
+            Movers builds up from a per-skin price history that Caskt records on each sync. With only a
+            single snapshot it shows a short note; once there's a second sync to compare against it fills
+            in, including the 24h view. The longer it runs, the better the 30-day view gets.
           </P>
         </Accordion>
 
