@@ -15,6 +15,7 @@ import { floatStr, cleanName, untilLabel, wear } from "../lib/format";
 import { useCurrency } from "../lib/currency";
 import { FloatBar } from "./FloatBar";
 import { CsfloatMark } from "./CsfloatMark";
+import { PhaseTag } from "./PhaseTag";
 
 export function ItemDetail({
   item,
@@ -114,6 +115,7 @@ export function ItemDetail({
         <div className="grid grid-cols-2 gap-x-6 gap-y-3 p-4 text-sm">
           <Stat label="Price" value={format(item.price)} />
           <Stat label="Location" value={locationLabel ?? (item.location === "inventory" ? "Inventory" : "Storage")} />
+          {item.phase && <Stat label="Finish" value={<PhaseTag phase={item.phase} />} />}
           {hasFloat && (
             <>
               <div className="col-span-2">

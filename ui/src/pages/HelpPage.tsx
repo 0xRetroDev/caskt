@@ -52,11 +52,6 @@ export function HelpPage() {
             when you are done, so it never fights CS2 for the connection.
           </P>
           <P>
-            Items you have equipped in your active loadout are marked with small <B>CT</B> and <B>T</B>{" "}
-            dots on the card, so you can tell at a glance what is currently in use before you move or list
-            it.
-          </P>
-          <P>
             Your sign-in stays on this machine. Only an encrypted Steam refresh token is stored, so you
             are not logging in from scratch every time. Nothing about your inventory ever leaves your
             computer except the requests Steam itself needs.

@@ -9,7 +9,7 @@ const SCHEMA_MAX_AGE_DAYS = 7;
 const PRICES_MAX_AGE_DAYS = 1;
 // Bump when buildSchema's output shape or coverage changes, to force a rebuild
 // for users who already have a recent schema.json.
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -39,6 +39,9 @@ interface Skin {
   weapon?: { weapon_id: number; name: string };
   category?: { name?: string };
   collections?: { name: string }[];
+  /** Doppler / Gamma Doppler phase or gem: "Phase 1".."Phase 4", "Ruby",
+   *  "Sapphire", "Emerald", "Black Pearl". Absent for everything else. */
+  phase?: string;
 }
 interface Named {
   id: string;
@@ -124,6 +127,10 @@ export async function buildSchema(dir: string): Promise<void> {
   const categories: Record<string, string> = {};
   // skinKey ("weaponId:paintIndex") -> collection name (e.g. "The Anubis Collection").
   const collections: Record<string, string> = {};
+  // skinKey -> Doppler phase/gem. Kept OUT of the name on purpose: Steam's market
+  // lumps every phase under one market_hash_name, so the name must stay phase-less
+  // for pricing to resolve. The phase rides alongside as a display-only field.
+  const phases: Record<string, string> = {};
   for (const s of skins) {
     if (!s.weapon) continue;
     const key = `${s.weapon.weapon_id}:${Number(s.paint_index)}`;
@@ -133,6 +140,9 @@ export async function buildSchema(dir: string): Promise<void> {
     categories[String(s.weapon.weapon_id)] = skinCategory(s.category?.name);
     const collection = s.collections?.[0]?.name;
     if (collection) collections[key] = collection;
+    // Each phase is a distinct paint_index, so this keys cleanly and the per-phase
+    // image already resolves through the same skinKey.
+    if (s.phase) phases[key] = s.phase;
   }
 
   // Merge the non-weapon categories under their def_index (paint index 0).
@@ -235,6 +245,7 @@ export async function buildSchema(dir: string): Promise<void> {
       musicKits: musicMap,
       categories,
       collections,
+      phases,
     }),
   );
   writeFileSync(join(dir, "images.json"), JSON.stringify(images));

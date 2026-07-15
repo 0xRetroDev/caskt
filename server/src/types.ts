@@ -64,16 +64,12 @@ export interface Item {
   musicId?: number;
   /** Skin collection (item set) name, when known. Weapon skins only. */
   collection?: string;
-  /** Teams this item is equipped on in the active loadout, e.g. ["CT","T"]. */
-  equipped?: ("CT" | "T")[];
-  /** The loadout slot this item fills on each team it is equipped on. */
-  equippedSlots?: { team: "CT" | "T"; slot: number }[];
   /**
-   * True when another equipped item shares one of this item's loadout slots.
-   * CS2 lets several skins sit in one slot and rotates between them per match,
-   * so a shared slot is exactly what "this item is in a shuffle" means.
+   * Doppler / Gamma Doppler phase or gem, e.g. "Phase 2", "Sapphire". Held apart
+   * from `name` because Steam's market lumps every phase under one name, so the
+   * name must stay phase-less to price. Display only.
    */
-  shuffled?: boolean;
+  phase?: string;
   /** Unit price from the price provider. Null when unknown/unpriced. */
   price?: number | null;
   /**
@@ -134,10 +130,6 @@ export interface Filter {
   nameTag?: string;
   /** Only items Caskt first saw at or after this unix-ms timestamp. */
   newerThan?: number;
-  /** true = only items equipped in the loadout; false = only unequipped. */
-  equipped?: boolean;
-  /** true = only items sharing a loadout slot with another item (a shuffle). */
-  shuffled?: boolean;
 }
 
 /** A single organize instruction: items matching `when` should end up in `to`. */
@@ -239,6 +231,8 @@ export interface NameResolver {
   musicKitName(musicId: number): string | null;
   /** Skin collection (item set) name for a weapon skin, or null. */
   collection(defindex: number, paintIndex: number): string | null;
+  /** Doppler/Gamma Doppler phase or gem for a knife skin, or null. */
+  phase(defindex: number, paintIndex: number): string | null;
 }
 
 /** Looks up a unit price for a resolved market_hash_name. Returns null if unknown. */

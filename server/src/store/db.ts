@@ -28,9 +28,7 @@ CREATE TABLE IF NOT EXISTS items (
   charms TEXT NOT NULL,
   musicId INTEGER,
   collection TEXT,
-  equipped TEXT,
-  equippedSlots TEXT,
-  shuffled INTEGER,
+  phase TEXT,
   firstSeenAt INTEGER,
   price REAL,
   syncedAt INTEGER NOT NULL
@@ -121,9 +119,7 @@ interface ItemRow {
   charms: string;
   musicId: number | null;
   collection: string | null;
-  equipped: string | null;
-  equippedSlots: string | null;
-  shuffled: number | null;
+  phase: string | null;
   firstSeenAt: number | null;
   price: number | null;
   syncedAt: number;
@@ -151,9 +147,7 @@ function rowToItem(r: ItemRow): Item {
   if (r.customName !== null) item.customName = r.customName;
   if (r.musicId !== null) item.musicId = r.musicId;
   if (r.collection !== null) item.collection = r.collection;
-  if (r.equipped !== null) item.equipped = JSON.parse(r.equipped) as ("CT" | "T")[];
-  if (r.equippedSlots !== null) item.equippedSlots = JSON.parse(r.equippedSlots) as Item["equippedSlots"];
-  if (r.shuffled) item.shuffled = true;
+  if (r.phase !== null) item.phase = r.phase;
   if (r.firstSeenAt !== null) item.firstSeenAt = r.firstSeenAt;
   return item;
 }
@@ -227,10 +221,8 @@ export class Store {
   private migrate(): void {
     const cols = (this.db.prepare("PRAGMA table_info(items)").all() as { name: string }[]).map((c) => c.name);
     if (!cols.includes("collection")) this.db.exec("ALTER TABLE items ADD COLUMN collection TEXT");
-    if (!cols.includes("equipped")) this.db.exec("ALTER TABLE items ADD COLUMN equipped TEXT");
+    if (!cols.includes("phase")) this.db.exec("ALTER TABLE items ADD COLUMN phase TEXT");
     if (!cols.includes("musicId")) this.db.exec("ALTER TABLE items ADD COLUMN musicId INTEGER");
-    if (!cols.includes("equippedSlots")) this.db.exec("ALTER TABLE items ADD COLUMN equippedSlots TEXT");
-    if (!cols.includes("shuffled")) this.db.exec("ALTER TABLE items ADD COLUMN shuffled INTEGER");
     // Existing rows keep a NULL firstSeenAt: they were indexed before we tracked
     // it, and dating them "now" would show a whole existing inventory as new.
     if (!cols.includes("firstSeenAt")) this.db.exec("ALTER TABLE items ADD COLUMN firstSeenAt INTEGER");
@@ -314,18 +306,17 @@ export class Store {
     return this.db.prepare(`
       INSERT INTO items (assetId, defindex, paintIndex, paintSeed, float, rarity, quality,
         stattrak, souvenir, name, location, protectedUntil, customName, stickers, charms, musicId,
-        collection, equipped, equippedSlots, shuffled, firstSeenAt, price, syncedAt)
+        collection, phase, firstSeenAt, price, syncedAt)
       VALUES (@assetId, @defindex, @paintIndex, @paintSeed, @float, @rarity, @quality,
         @stattrak, @souvenir, @name, @location, @protectedUntil, @customName, @stickers, @charms, @musicId,
-        @collection, @equipped, @equippedSlots, @shuffled, @firstSeenAt, @price, @syncedAt)
+        @collection, @phase, @firstSeenAt, @price, @syncedAt)
       ON CONFLICT(assetId) DO UPDATE SET
         defindex=excluded.defindex, paintIndex=excluded.paintIndex, paintSeed=excluded.paintSeed,
         float=excluded.float, rarity=excluded.rarity, quality=excluded.quality,
         stattrak=excluded.stattrak, souvenir=excluded.souvenir, name=excluded.name,
         location=excluded.location, protectedUntil=excluded.protectedUntil, customName=excluded.customName,
         stickers=excluded.stickers, charms=excluded.charms, musicId=excluded.musicId,
-        collection=excluded.collection, equipped=excluded.equipped, equippedSlots=excluded.equippedSlots,
-        shuffled=excluded.shuffled, price=excluded.price, syncedAt=excluded.syncedAt
+        collection=excluded.collection, phase=excluded.phase, price=excluded.price, syncedAt=excluded.syncedAt
     `);
   }
 
@@ -557,9 +548,7 @@ function itemParams(item: Item): ItemRow {
     charms: JSON.stringify(item.charms),
     musicId: item.musicId ?? null,
     collection: item.collection ?? null,
-    equipped: item.equipped && item.equipped.length ? JSON.stringify(item.equipped) : null,
-    equippedSlots: item.equippedSlots && item.equippedSlots.length ? JSON.stringify(item.equippedSlots) : null,
-    shuffled: item.shuffled ? 1 : null,
+    phase: item.phase ?? null,
     firstSeenAt: item.firstSeenAt ?? null,
     price: item.price ?? null,
     syncedAt: item.syncedAt,

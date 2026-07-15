@@ -1,12 +1,13 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowRight, Boxes, CalendarClock, Check, Eye, Lock, Package, Shuffle } from "lucide-react";
+import { ArrowRight, Boxes, CalendarClock, Check, Eye, Lock, Package } from "lucide-react";
 import type { Item, PendingView, PinnedSchedule } from "../api/types";
 import { rarityColor } from "../lib/rarity";
 import { floatStr, cleanName, untilLabel } from "../lib/format";
 import { useCurrency } from "../lib/currency";
 import { FloatBar, WearTag } from "./FloatBar";
 import { CsfloatMark } from "./CsfloatMark";
+import { PhaseTag } from "./PhaseTag";
 
 export function ItemCard({
   item,
@@ -116,36 +117,46 @@ export function ItemCard({
             {item.protectedUntil ? untilLabel(item.protectedUntil) : "locked"}
           </span>
         )}
-        {item.category !== "Sticker" &&
-          item.category !== "Charm" &&
-          (item.stickers.length > 0 || item.charms.length > 0) && (
-            <div className="absolute inset-x-1.5 bottom-1.5 flex flex-wrap items-end gap-1">
-              {item.stickers.slice(0, 5).map((s, i) => (
-                <Accessory key={`s${i}`} image={s.image ?? null} name={s.name} wear={s.wear} kind="sticker" />
-              ))}
-              {item.stickers.length > 5 && (
-                <span className="rounded-sm bg-ink-900/80 px-1 text-[10px] text-fg-dim ring-1 ring-line">
-                  +{item.stickers.length - 5}
-                </span>
+        {(() => {
+          const showAccessories =
+            item.category !== "Sticker" && item.category !== "Charm" && (item.stickers.length > 0 || item.charms.length > 0);
+          if (!showAccessories && !item.phase) return null;
+          // Bottom strip of the artwork: what is stuck to the item on the left, the
+          // Doppler phase on the right. A Glock Gamma Doppler can have both, so they
+          // share the row with the phase pushed to its own corner.
+          return (
+            <div className="absolute inset-x-1.5 bottom-1.5 flex items-end gap-1">
+              {showAccessories && (
+                <div className="flex min-w-0 flex-wrap items-end gap-1">
+                  {item.stickers.slice(0, 5).map((s, i) => (
+                    <Accessory key={`s${i}`} image={s.image ?? null} name={s.name} wear={s.wear} kind="sticker" />
+                  ))}
+                  {item.stickers.length > 5 && (
+                    <span className="rounded-sm bg-ink-900/80 px-1 text-[10px] text-fg-dim ring-1 ring-line">
+                      +{item.stickers.length - 5}
+                    </span>
+                  )}
+                  {item.charms.slice(0, 1).map((c, i) => (
+                    <Accessory key={`c${i}`} image={c.image ?? null} name={c.name} kind="charm" />
+                  ))}
+                </div>
               )}
-              {item.charms.slice(0, 1).map((c, i) => (
-                <Accessory key={`c${i}`} image={c.image ?? null} name={c.name} kind="charm" />
-              ))}
+              {item.phase && (
+                <div className="ml-auto">
+                  <PhaseTag phase={item.phase} onImage />
+                </div>
+              )}
             </div>
-          )}
+          );
+        })()}
       </div>
 
       <div className="flex flex-1 flex-col gap-2 p-3">
         <div className="min-h-[34px]">
-          <div className="flex items-start gap-1.5">
-            <div className="flex min-w-0 flex-1 items-center gap-1.5">
-              {item.stattrak && <span className="text-[10px] font-semibold text-rarity-gold">ST</span>}
-              {item.souvenir && <span className="text-[10px] font-semibold text-rarity-gold">SV</span>}
-              <span className="line-clamp-2 text-[13px] leading-tight text-fg">{cleanName(item.name)}</span>
-            </div>
-            {item.equipped && item.equipped.length > 0 && (
-              <EquippedDots teams={item.equipped} shuffled={item.shuffled} />
-            )}
+          <div className="flex min-w-0 items-center gap-1.5">
+            {item.stattrak && <span className="text-[10px] font-semibold text-rarity-gold">ST</span>}
+            {item.souvenir && <span className="text-[10px] font-semibold text-rarity-gold">SV</span>}
+            <span className="line-clamp-2 text-[13px] leading-tight text-fg">{cleanName(item.name)}</span>
           </div>
         </div>
 
@@ -250,23 +261,6 @@ function WatchersTag({ watchers }: { watchers: number }) {
     >
       <Eye size={11} className="shrink-0" />
       {watchers}
-    </span>
-  );
-}
-
-// A dot per team the item is equipped on, plus a shuffle glyph when the item
-// shares its loadout slot with others — CS2 then rotates between them per match,
-// so "equipped" and "one of several equipped" are worth telling apart.
-function EquippedDots({ teams, shuffled }: { teams: ("CT" | "T")[]; shuffled?: boolean }) {
-  const label = teams.map((t) => (t === "CT" ? "Counter-Terrorists" : "Terrorists")).join(" and ");
-  const title = shuffled
-    ? `In a loadout shuffle on ${label} — CS2 rotates between this and the other skins in the slot`
-    : `Equipped on ${label}`;
-  return (
-    <span className="flex shrink-0 items-center gap-1 pt-0.5" title={title}>
-      {teams.includes("CT") && <span className="h-2 w-2 rounded-full bg-blue-400" aria-label="CT" />}
-      {teams.includes("T") && <span className="h-2 w-2 rounded-full bg-orange-400" aria-label="T" />}
-      {shuffled && <Shuffle size={11} className="text-fg-dim" aria-label="In a shuffle" />}
     </span>
   );
 }

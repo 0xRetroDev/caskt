@@ -82,11 +82,5 @@ export function matchItem(item: Item, filter: Filter, now: number = Date.now()):
     if (item.firstSeenAt === undefined || item.firstSeenAt < filter.newerThan) return false;
   }
 
-  if (filter.equipped !== undefined) {
-    const has = !!item.equipped && item.equipped.length > 0;
-    if (has !== filter.equipped) return false;
-  }
-  if (filter.shuffled !== undefined && !!item.shuffled !== filter.shuffled) return false;
-
   return true;
 }

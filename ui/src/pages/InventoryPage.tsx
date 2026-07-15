@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Search } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import { useAllItems, usePendingMoves, usePinnedSchedules, useSettings, useUnits, useValue } from "../api/hooks";
 import type { Item } from "../api/types";
 import { ItemGrid } from "../components/ItemGrid";
@@ -52,6 +52,38 @@ const SORTERS: Record<Sort, (a: Item, b: Item) => number> = {
 };
 type Action = { mode: "move"; to: string; name: string } | { mode: "withdraw" } | null;
 
+/**
+ * Toggleable filters, combined with AND so they can be mixed freely (StatTrak +
+ * Has stickers, New + Souvenir, and so on). They live behind an "Add filter" menu
+ * rather than sitting on the bar permanently: only the ones actually in use take
+ * up space, so the bar stays one line however many we add here.
+ */
+type Modifier = "new" | "stattrak" | "souvenir" | "stickers" | "charm";
+
+const MODIFIERS: { key: Modifier; label: string; hint: string; test: (i: Item, now: number) => boolean }[] = [
+  {
+    key: "new",
+    label: "New",
+    hint: "First appeared in your inventory in the last 7 days",
+    test: (i, now) => isNew(i, now),
+  },
+  { key: "stattrak", label: "StatTrak", hint: "Counts your kills", test: (i) => i.stattrak },
+  { key: "souvenir", label: "Souvenir", hint: "Dropped during a tournament match", test: (i) => i.souvenir },
+  {
+    key: "stickers",
+    label: "Has stickers",
+    // Applied to a weapon, not a loose sticker item — those are the Stickers category.
+    hint: "Has stickers applied to it",
+    test: (i) => i.stickers.length > 0 && i.category !== "Sticker",
+  },
+  {
+    key: "charm",
+    label: "Has charm",
+    hint: "Has a charm attached to it",
+    test: (i) => i.charms.length > 0 && i.category !== "Charm",
+  },
+];
+
 // Display labels for the server's category values.
 const CATEGORY_LABEL: Record<string, string> = {
   Skin: "Skins",
@@ -89,12 +121,7 @@ export function InventoryPage() {
   const [scope, setScope] = useState<string>("inventory");
   const [text, setText] = useState("");
   const [category, setCategory] = useState<string>("all");
-  const [stattrak, setStattrak] = useState(false);
-  const [souvenir, setSouvenir] = useState(false);
-  const [hasStickers, setHasStickers] = useState(false);
-  const [hasCharms, setHasCharms] = useState(false);
-  const [onlyNew, setOnlyNew] = useState(false);
-  const [onlyEquipped, setOnlyEquipped] = useState(false);
+  const [mods, setMods] = useState<Set<Modifier>>(new Set());
   const [status, setStatus] = useState<"any" | "tradable" | "locked" | "listed">("any");
   const [weaponSel, setWeaponSel] = useState<string>("any");
   const [sort, setSort] = useState<Sort>("price");
@@ -166,23 +193,26 @@ export function InventoryPage() {
     return [...set].sort((a, b) => a.localeCompare(b));
   }, [scoped]);
 
-  // Only offer the "New" chip once there is something to find: on a fresh install
-  // nothing has an arrival date yet, so the filter would only ever return zero.
+  // How many items each filter would match right now. A filter that can only ever
+  // return nothing (nothing new yet, no StatTrak owned) is not worth offering, so
+  // the menu hides it — and the counts tell you what a filter is worth before you
+  // spend a click on it.
   const now = Date.now();
-  const newCount = useMemo(() => scoped.filter((i) => isNew(i, now)).length, [scoped, now]);
-  const equippedCount = useMemo(() => scoped.filter((i) => i.equipped?.length).length, [scoped]);
+  const modCounts = useMemo(() => {
+    const counts = {} as Record<Modifier, number>;
+    for (const m of MODIFIERS) counts[m.key] = 0;
+    for (const item of scoped) {
+      for (const m of MODIFIERS) if (m.test(item, now)) counts[m.key]++;
+    }
+    return counts;
+  }, [scoped, now]);
 
   const filtered = useMemo(() => {
     const q = text.trim().toLowerCase();
+    const active = MODIFIERS.filter((m) => mods.has(m.key));
     const out = scoped.filter((i) => {
       if (category !== "all" && i.category !== category) return false;
-      if (stattrak && !i.stattrak) return false;
-      if (souvenir && !i.souvenir) return false;
-      // "Has stickers/charms" means applied to a weapon, not a loose sticker/charm item.
-      if (hasStickers && !(i.stickers.length > 0 && i.category !== "Sticker")) return false;
-      if (hasCharms && !(i.charms.length > 0 && i.category !== "Charm")) return false;
-      if (onlyNew && !isNew(i, now)) return false;
-      if (onlyEquipped && !i.equipped?.length) return false;
+      if (!active.every((m) => m.test(i, now))) return false;
       if (status === "locked" && !i.locked) return false;
       if (status === "tradable" && i.locked) return false;
       if (status === "listed" && !i.listing) return false;
@@ -194,12 +224,29 @@ export function InventoryPage() {
         !matchesTournament(i, eventSel === "any" ? null : eventSel, teamSel === "any" ? null : teamSel)
       )
         return false;
-      if (q && !(i.name ?? "").toLowerCase().includes(q)) return false;
+      // Match the search against the phase too, so "sapphire" or "phase 2" finds a
+      // Doppler even though its market name never carries the phase.
+      if (q && !`${i.name ?? ""} ${i.phase ?? ""}`.toLowerCase().includes(q)) return false;
       return true;
     });
     out.sort(SORTERS[sort]);
     return out;
-  }, [scoped, category, stattrak, souvenir, hasStickers, hasCharms, onlyNew, onlyEquipped, now, status, wearTier, weaponSel, collectionSel, eventSel, teamSel, text, sort]);
+  }, [scoped, category, mods, now, status, wearTier, weaponSel, collectionSel, eventSel, teamSel, text, sort]);
+
+  function addMod(key: Modifier) {
+    setMods((prev) => new Set(prev).add(key));
+    // Filtering to what is new but leaving the grid sorted by price buries the very
+    // items you asked to see, so put the newest in front.
+    if (key === "new") setSort("newest");
+  }
+
+  function removeMod(key: Modifier) {
+    setMods((prev) => {
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
+  }
 
   function toggle(assetId: string, shiftKey?: boolean, ctrlKey?: boolean) {
     const idx = filtered.findIndex((i) => i.assetId === assetId);
@@ -425,44 +472,14 @@ export function InventoryPage() {
           </Chip>
         ))}
         <span className="mx-1 h-4 w-px bg-line" />
-        {newCount > 0 && (
-          <Chip
-            active={onlyNew}
-            onClick={() => {
-              const next = !onlyNew;
-              setOnlyNew(next);
-              // Turning the filter on and leaving the grid sorted by price buries
-              // the newest arrivals; showing them newest-first is the whole point.
-              if (next) setSort("newest");
-            }}
-            accent
-            title="Items that first appeared in your inventory in the last 7 days"
-          >
-            New ({newCount})
-          </Chip>
-        )}
-        <Chip active={stattrak} onClick={() => setStattrak((v) => !v)} accent>
-          StatTrak
-        </Chip>
-        <Chip active={souvenir} onClick={() => setSouvenir((v) => !v)} accent>
-          Souvenir
-        </Chip>
-        <Chip active={hasStickers} onClick={() => setHasStickers((v) => !v)} accent>
-          Has stickers
-        </Chip>
-        <Chip active={hasCharms} onClick={() => setHasCharms((v) => !v)} accent>
-          Has charm
-        </Chip>
-        {equippedCount > 0 && (
-          <Chip
-            active={onlyEquipped}
-            onClick={() => setOnlyEquipped((v) => !v)}
-            accent
-            title="Items equipped in your CT or T loadout"
-          >
-            Equipped
-          </Chip>
-        )}
+        {MODIFIERS.filter((m) => mods.has(m.key)).map((m) => (
+          <ActiveChip key={m.key} label={m.label} title={m.hint} onRemove={() => removeMod(m.key)} />
+        ))}
+        <AddFilterMenu
+          options={MODIFIERS.filter((m) => !mods.has(m.key) && modCounts[m.key] > 0)}
+          counts={modCounts}
+          onPick={addMod}
+        />
       </div>
 
       <div className="num mb-2 flex items-center gap-3 text-xs text-fg-faint">
@@ -559,6 +576,96 @@ export function InventoryPage() {
           pending={pending.data?.[detail.assetId]}
           onClose={() => setDetail(null)}
         />
+      )}
+    </div>
+  );
+}
+
+/** An applied filter. Carries its own remove button, so it is obvious how to undo. */
+function ActiveChip({ label, title, onRemove }: { label: string; title: string; onRemove: () => void }) {
+  return (
+    <span
+      title={title}
+      className="flex items-center gap-1 rounded-full border border-accent-dim bg-accent/15 py-1 pl-3 pr-1.5 text-[13px] text-accent"
+    >
+      {label}
+      <button
+        onClick={onRemove}
+        aria-label={`Remove ${label} filter`}
+        className="flex h-4 w-4 items-center justify-center rounded-full hover:bg-accent/25"
+      >
+        <X size={11} strokeWidth={2.5} />
+      </button>
+    </span>
+  );
+}
+
+/**
+ * The "+" menu holding every filter that is not currently applied. Keeping the
+ * unused ones in here is what stops the bar from wrapping: it grows only with the
+ * filters you actually pick, not with every filter that exists.
+ */
+function AddFilterMenu({
+  options,
+  counts,
+  onPick,
+}: {
+  options: { key: Modifier; label: string; hint: string }[];
+  counts: Record<Modifier, number>;
+  onPick: (key: Modifier) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  // Every filter is already applied: nothing left to add, so offer nothing.
+  if (options.length === 0) return null;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        title="Add a filter"
+        className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-[13px] transition-colors ${
+          open ? "border-ink-400 bg-ink-600 text-fg" : "border-line bg-ink-800 text-fg-dim hover:text-fg"
+        }`}
+      >
+        <Plus size={13} strokeWidth={2.5} />
+        Filter
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full z-30 mt-1.5 min-w-[15rem] overflow-hidden rounded-md border border-line bg-ink-800 py-1 shadow-xl">
+          {options.map((o) => (
+            <button
+              key={o.key}
+              onClick={() => {
+                onPick(o.key);
+                setOpen(false);
+              }}
+              title={o.hint}
+              className="flex w-full items-baseline gap-2 px-3 py-1.5 text-left hover:bg-ink-700"
+            >
+              <span className="flex-1 text-[13px] text-fg">{o.label}</span>
+              <span className="num text-[11px] text-fg-faint">{counts[o.key]}</span>
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );

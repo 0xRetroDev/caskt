@@ -115,27 +115,6 @@ function mapGcItem(raw: GcItem, location: string, now: number): Item {
   if (r["custom_name"] !== undefined) item.customName = String(r["custom_name"]);
   const musicId = attrU32(attrs, ATTR.MUSIC_ID);
   if (musicId) item.musicId = musicId;
-
-  // Loadout: equipped_state is a list of (new_class, new_slot) pairs. The class is
-  // the team number — 2 = T, 3 = CT — and the slot is the loadout position the
-  // item fills for that team. We keep the slot, not just the team, because a slot
-  // holding more than one item IS a shuffle: that is the only signal CS2 gives us.
-  // Which items share a slot can only be known across the whole inventory, so the
-  // shuffle flag itself is worked out after the crawl (see markShuffles).
-  const equipState = r["equipped_state"];
-  if (Array.isArray(equipState) && equipState.length > 0) {
-    const teams = new Set<"CT" | "T">();
-    const slots: { team: "CT" | "T"; slot: number }[] = [];
-    for (const e of equipState as Array<Record<string, unknown>>) {
-      const cls = Number(e["new_class"]);
-      const team = cls === 3 ? "CT" : cls === 2 ? "T" : null;
-      if (!team) continue;
-      teams.add(team);
-      slots.push({ team, slot: Number(e["new_slot"] ?? 0) });
-    }
-    if (teams.size > 0) item.equipped = [...teams];
-    if (slots.length > 0) item.equippedSlots = slots;
-  }
   // Trade protection: globaloffensive parses attribute 75 into a Date on
   // `tradable_after`. If it is in the future, the item is locked.
   const tradableAfter = r["tradable_after"];
@@ -176,29 +155,6 @@ export function isPhantom(raw: GcItem): boolean {
   if (token === undefined || token === null) return true;
   const u = Number(token) >>> 0; // unsigned 32-bit
   return u === 0 || u >= 0x80000000;
-}
-
-/**
- * Flag every item that shares a loadout slot with another item. CS2's loadout
- * shuffle works by putting several skins in one slot and rotating between them
- * each match, and the GC does not label that anywhere — each item simply reports
- * itself as equipped on the same (team, slot). So a slot with two or more items
- * in it is a shuffle, and every item in that slot is part of it. A slot with one
- * item is a plain equip. Mutates the items in place.
- */
-export function markShuffles(items: Item[]): void {
-  const bySlot = new Map<string, Item[]>();
-  for (const item of items) {
-    for (const s of item.equippedSlots ?? []) {
-      const key = `${s.team}:${s.slot}`;
-      const group = bySlot.get(key);
-      if (group) group.push(item);
-      else bySlot.set(key, [item]);
-    }
-  }
-  for (const group of bySlot.values()) {
-    if (group.length > 1) for (const item of group) item.shuffled = true;
-  }
 }
 
 export interface CrawlResult {
@@ -431,7 +387,6 @@ export class GcSession {
       });
     }
 
-    markShuffles(items);
     return { items, units };
   }
 

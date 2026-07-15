@@ -63,6 +63,8 @@ export interface Item {
   charms: Charm[];
   /** Music kit id, on music kit items. */
   musicId?: number;
+  /** Doppler / Gamma Doppler phase or gem (e.g. "Phase 2", "Sapphire"). Display only. */
+  phase?: string;
   price?: number | null;
   syncedAt: number;
   /**
@@ -76,11 +78,6 @@ export interface Item {
   locked: boolean;
   category: string;
   collection: string | null;
-  equipped?: ("CT" | "T")[];
-  /** The loadout slot this item fills, per team it is equipped on. */
-  equippedSlots?: { team: "CT" | "T"; slot: number }[];
-  /** True when this item shares a loadout slot with another — i.e. it is in a shuffle. */
-  shuffled?: boolean;
   listing?: CsfloatListingView | null;
 }
 

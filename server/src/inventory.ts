@@ -438,6 +438,7 @@ export class Inventory {
         souvenir: item.souvenir,
       });
       item.collection = this.resolver.collection(item.defindex, item.paintIndex) ?? undefined;
+      item.phase = this.resolver.phase(item.defindex, item.paintIndex) ?? undefined;
       for (const s of item.stickers) s.name = this.resolver.stickerName(s.stickerId);
       for (const c of item.charms) c.name = this.charmName(c);
 

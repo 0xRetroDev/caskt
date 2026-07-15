@@ -25,6 +25,8 @@ export interface SchemaData {
   musicKits?: Record<string, string>;
   /** "defindex:paintIndex" -> collection name (e.g. "The Anubis Collection"). */
   collections?: Record<string, string>;
+  /** "defindex:paintIndex" -> Doppler phase/gem (e.g. "Phase 2", "Sapphire"). */
+  phases?: Record<string, string>;
 }
 
 /** Resolves names from loaded schema maps. */
@@ -89,6 +91,10 @@ export class SchemaResolver implements NameResolver {
   collection(defindex: number, paintIndex: number): string | null {
     return this.data.collections?.[`${defindex}:${paintIndex}`] ?? null;
   }
+
+  phase(defindex: number, paintIndex: number): string | null {
+    return this.data.phases?.[`${defindex}:${paintIndex}`] ?? null;
+  }
 }
 
 /** Fallback resolver used when no schema is supplied: everything is unresolved. */
@@ -112,6 +118,9 @@ export class NullResolver implements NameResolver {
     return null;
   }
   collection(): string | null {
+    return null;
+  }
+  phase(): string | null {
     return null;
   }
 }

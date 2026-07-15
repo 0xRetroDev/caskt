@@ -4,7 +4,6 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SchemaResolver, type SchemaData } from "../src/gc/schema.js";
-import { markShuffles } from "../src/gc/session.js";
 import { Store } from "../src/store/db.js";
 import type { Item } from "../src/types.js";
 
@@ -13,7 +12,9 @@ import type { Item } from "../src/types.js";
 // deliberately collide across spaces (1 is a sticker, a charm AND a music kit) —
 // that is exactly the mistake this layout exists to prevent.
 const SCHEMA: SchemaData = {
-  skins: { "7:44": "AK-47 | Redline" },
+  // Karambit Doppler: Phase 1 (paint 418) and Sapphire (paint 416) share the base
+  // name but carry different phases — Steam prices them under the one name.
+  skins: { "7:44": "AK-47 | Redline", "507:418": "★ Karambit | Doppler", "507:416": "★ Karambit | Doppler" },
   weapons: { "7": "AK-47", "1200": "Name Tag" },
   stickers: { "1": "Sticker | Shooter", "4550": "Patch | Crazy Banana", "1653": "Sealed Graffiti | Blood Boiler" },
   charms: { "1": "Charm | Lil' Ava" },
@@ -21,6 +22,7 @@ const SCHEMA: SchemaData = {
   highlights: { "1": "Souvenir Charm | Austin 2025 Highlight | chopper Double Kill" },
   musicKits: { "1": "Music Kit | Valve, Counter-Strike 2" },
   collections: {},
+  phases: { "507:418": "Phase 1", "507:416": "Sapphire" },
 };
 
 const resolver = new SchemaResolver(SCHEMA);
@@ -65,37 +67,24 @@ test("stickers, patches and graffiti share one sticker-kit id space", () => {
   assert.equal(resolver.stickerName(1653), "Sealed Graffiti | Blood Boiler");
 });
 
+test("a Doppler's name stays phase-less for pricing, with the phase held apart", () => {
+  // The market_hash_name must not carry the phase: Steam lumps every phase under
+  // one name, so a phased name would never match a price. Different paint indexes
+  // (phases) therefore resolve to the SAME name but DIFFERENT phases.
+  const p1 = { defindex: 507, paintIndex: 418, float: 0.01, quality: 3, stattrak: false, souvenir: false };
+  const sapphire = { ...p1, paintIndex: 416 };
+  assert.equal(resolver.itemName(p1), "★ Karambit | Doppler (Factory New)");
+  assert.equal(resolver.itemName(sapphire), "★ Karambit | Doppler (Factory New)");
+  assert.equal(resolver.phase(507, 418), "Phase 1");
+  assert.equal(resolver.phase(507, 416), "Sapphire");
+  assert.equal(resolver.phase(7, 44), null, "a normal skin has no phase");
+});
+
 test("a tool is named by def_index, with no attribute to fall back on", () => {
   assert.equal(
     resolver.itemName({ defindex: 1200, paintIndex: 0, float: 0, quality: 4, stattrak: false, souvenir: false }),
     "Name Tag",
   );
-});
-
-test("markShuffles flags only items that share a loadout slot", () => {
-  // Two AKs in the T primary slot (a shuffle), one knife equipped alone.
-  const akA = item({ assetId: "a", equippedSlots: [{ team: "T", slot: 4 }] });
-  const akB = item({ assetId: "b", equippedSlots: [{ team: "T", slot: 4 }] });
-  const knife = item({ assetId: "c", equippedSlots: [{ team: "T", slot: 0 }] });
-  const stored = item({ assetId: "d" });
-
-  markShuffles([akA, akB, knife, stored]);
-
-  assert.equal(akA.shuffled, true);
-  assert.equal(akB.shuffled, true);
-  assert.equal(knife.shuffled, undefined, "a slot with one item is a plain equip, not a shuffle");
-  assert.equal(stored.shuffled, undefined);
-});
-
-test("markShuffles keeps the two teams' slots separate", () => {
-  // Same slot number, different teams: not a shuffle, just one skin per side.
-  const ct = item({ assetId: "a", equippedSlots: [{ team: "CT", slot: 4 }] });
-  const t = item({ assetId: "b", equippedSlots: [{ team: "T", slot: 4 }] });
-
-  markShuffles([ct, t]);
-
-  assert.equal(ct.shuffled, undefined);
-  assert.equal(t.shuffled, undefined);
 });
 
 /**
