@@ -89,6 +89,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   Skin: "Skins",
   Knife: "Knives",
   Gloves: "Gloves",
+  Weapon: "Weapons",
   Sticker: "Stickers",
   "Sticker Slab": "Sticker Slabs",
   Patch: "Patches",

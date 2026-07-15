@@ -131,27 +131,36 @@ function isStorageUnit(raw: GcItem): boolean {
 }
 
 /**
- * Some accounts carry a "ghost" item in the GC inventory feed that isn't really
- * in the in-game backpack — most famously an orphaned "CS:GO Weapon Case" that
- * 1000+ users see but don't own. Its tell is a zero `inventory` slot token: every
- * genuine backpack item gets a non-zero token (the lib derives `position` from
- * it), and even freshly dropped, unacknowledged items carry the token with the
- * high "new" bit set, so they stay non-zero. Only slot-less ghosts read as 0, and
- * the GC refuses to move or list them. We drop exactly those.
+ * Some accounts carry "ghost" items in the GC inventory feed that aren't really in
+ * the backpack — most famously an orphaned "CS:GO Weapon Case" or "Kilowatt Case"
+ * that many accounts see but don't own. They come in two forms, and the GC refuses
+ * to move or list either:
+ *   1. A granted/default placeholder, tagged by a 0xF... id (see below).
+ *   2. A slot-less item whose `inventory` token is 0 or has bit 31 set. Genuine
+ *      items get a non-zero token and never set bit 31 — even a freshly dropped,
+ *      unacknowledged item only sets bit 30 (the "new" bit, ~0x4000xxxx).
  */
-/**
- * Some accounts carry a "ghost" item in the GC inventory feed that isn't really
- * in the in-game backpack — most famously an orphaned "CS:GO Weapon Case" that
- * 1000+ users see but don't own. Confirmed from a live dump, its `inventory`
- * slot token is 0xC0000005: bit 31 is set. Genuine items never set bit 31 — a
- * normal item's token is its slot index, and even a freshly dropped,
- * unacknowledged item only sets bit 30 (the "new" bit, ~0x4000xxxx). A zero or
- * missing token is also slot-less. The GC refuses to move or list these, so we
- * drop them. Bit 31 is structural, not item-specific, so this also clears any
- * other orphaned ghost an account may carry.
- */
+/** The top of the 64-bit id space (top nibble 0xF) is Valve's marker for a
+ *  granted/default placeholder item, not a real backpack item. */
+const DEFAULT_ITEM_ID_FLOOR = 0xf000000000000000n;
+
 export function isPhantom(raw: GcItem): boolean {
-  const token = (raw as Record<string, unknown>)["inventory"];
+  const r = raw as Record<string, unknown>;
+  // Placeholder/granted items carry a 0xF... id. These are the phantom cases many
+  // accounts see — a "CS:GO Weapon Case", a "Kilowatt Case" — that show in the feed
+  // but are not really owned; the GC refuses to move or list them. Real ids are
+  // tiny by comparison (~5e10), so this never catches a genuine item.
+  const id = r["id"];
+  if (id !== undefined && id !== null) {
+    try {
+      if (BigInt(String(id)) >= DEFAULT_ITEM_ID_FLOOR) return true;
+    } catch {
+      /* non-numeric id: fall through to the slot-token check */
+    }
+  }
+  // A slot-less item is also a ghost: genuine items get a non-zero inventory token
+  // and never set bit 31; only orphaned ghosts read as 0 or bit-31-set.
+  const token = r["inventory"];
   if (token === undefined || token === null) return true;
   const u = Number(token) >>> 0; // unsigned 32-bit
   return u === 0 || u >= 0x80000000;

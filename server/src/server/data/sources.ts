@@ -9,7 +9,7 @@ const SCHEMA_MAX_AGE_DAYS = 7;
 const PRICES_MAX_AGE_DAYS = 1;
 // Bump when buildSchema's output shape or coverage changes, to force a rebuild
 // for users who already have a recent schema.json.
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -76,6 +76,12 @@ const DEF_ITEM_FILES: { file: string; category: (it: DefItem) => string }[] = [
     category: (it) =>
       it.type === "Case" ? "Case" : /capsule/i.test(it.type ?? "") ? "Capsule" : "Container",
   },
+  // Base (skin-less) weapons, keyed by their real def_index. This is a gap-filler:
+  // every skinned weapon is already named via skins.json, so in practice this only
+  // adds items that never carry a skin — the C4 (def 49) above all. Without it, a
+  // bomb wearing a charm or Sticker Slab resolves to no name and gets mislabelled
+  // as the attachment itself. Merged AFTER skins, so it never overrides a real skin.
+  { file: "base_weapons", category: () => "Weapon" },
 ];
 
 /**

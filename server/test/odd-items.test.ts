@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SchemaResolver, type SchemaData } from "../src/gc/schema.js";
+import { isPhantom } from "../src/gc/session.js";
 import { Store } from "../src/store/db.js";
 import type { Item } from "../src/types.js";
 
@@ -78,6 +79,20 @@ test("a Doppler's name stays phase-less for pricing, with the phase held apart",
   assert.equal(resolver.phase(507, 418), "Phase 1");
   assert.equal(resolver.phase(507, 416), "Sapphire");
   assert.equal(resolver.phase(7, 44), null, "a normal skin has no phase");
+});
+
+test("phantom cases: 0xF placeholder ids and slot-less tokens are dropped", () => {
+  const raw = (over: Record<string, unknown>) => over as never;
+  // Real Kilowatt case: small id, real slot token -> kept.
+  assert.equal(isPhantom(raw({ id: "52714591458", def_index: 4904, inventory: 3 })), false);
+  // Phantom Kilowatt case: a 0xF... granted-item id -> dropped, whatever its token.
+  assert.equal(isPhantom(raw({ id: "17293822569102709590", def_index: 4904, inventory: 3 })), true);
+  // Phantom CS:GO Weapon Case: 0xF id -> dropped.
+  assert.equal(isPhantom(raw({ id: "17293822569102708641", def_index: 4001, inventory: 5 })), true);
+  // Slot-less ghost: bit-31 token, even with a normal id -> dropped.
+  assert.equal(isPhantom(raw({ id: "52714591458", inventory: 0xc0000005 })), true);
+  // Missing / zero token -> dropped.
+  assert.equal(isPhantom(raw({ id: "52714591458", inventory: 0 })), true);
 });
 
 test("a tool is named by def_index, with no attribute to fall back on", () => {
